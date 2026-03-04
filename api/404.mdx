@@ -1,0 +1,195 @@
+---
+title: GeoAI_404
+description: API reference for the 404 monitoring class that tracks broken links and errors
+---
+
+The `GeoAI_404` class handles 404 error monitoring and logging for the GEO AI plugin.
+
+## Overview
+
+This class provides opt-in 404 error tracking with configurable retention controls. It logs broken URLs, referrers, and IP addresses to help identify and fix site issues.
+
+**Namespace:** `GeoAI\Core`  
+**File:** `includes/class-geoai-404.php`
+
+## Class Methods
+
+### get_instance()
+
+Get the singleton instance of the 404 monitor.
+
+```php
+$monitor = GeoAI\Core\GeoAI_404::get_instance();
+```
+
+**Returns:** `GeoAI_404` — Singleton instance
+
+---
+
+### log_404()
+
+Logs a 404 error to the database if monitoring is enabled.
+
+```php
+public function log_404()
+```
+
+**Hooked to:** `template_redirect`
+
+**Behavior:**
+- Only runs on 404 pages (`is_404()`)
+- Checks if monitoring is enabled in settings
+- Logs URL, referrer, IP address, and timestamp
+- Automatically cleans up old logs based on retention settings
+
+**Database Schema:**
+```sql
+CREATE TABLE wp_geoai_404_log (
+  id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+  url varchar(255) NOT NULL,
+  referrer varchar(255),
+  ip varchar(45),
+  timestamp datetime NOT NULL,
+  PRIMARY KEY (id),
+  KEY timestamp (timestamp)
+);
+```
+
+---
+
+### get_client_ip()
+
+Retrieves the client IP address with proxy support.
+
+```php
+private function get_client_ip()
+```
+
+**Returns:** `string` — Sanitized IP address
+
+**Detection Order:**
+1. `HTTP_CLIENT_IP` (proxy)
+2. `HTTP_X_FORWARDED_FOR` (load balancer)
+3. `REMOTE_ADDR` (direct connection)
+
+---
+
+### cleanup_old_logs()
+
+Removes 404 logs older than the configured retention period.
+
+```php
+private function cleanup_old_logs()
+```
+
+**Default Retention:** 30 days  
+**Configurable via:** `geoai_404_settings['retention']`
+
+Called automatically after each new 404 log entry.
+
+## Configuration
+
+Enable 404 monitoring via **Settings → GEO AI → Redirects & 404**.
+
+**Option Key:** `geoai_404_settings`
+
+```php
+array(
+  'enabled'   => true,   // Enable monitoring
+  'retention' => 30      // Days to keep logs
+)
+```
+
+## Usage Examples
+
+### Check if monitoring is enabled
+
+```php
+$settings = get_option( 'geoai_404_settings', array() );
+if ( ! empty( $settings['enabled'] ) ) {
+    // Monitoring is active
+}
+```
+
+### Query recent 404s
+
+```php
+global $wpdb;
+$table = $wpdb->prefix . 'geoai_404_log';
+
+$recent_404s = $wpdb->get_results(
+    "SELECT * FROM {$table} 
+     ORDER BY timestamp DESC 
+     LIMIT 50"
+);
+
+foreach ( $recent_404s as $log ) {
+    echo sprintf(
+        '%s - %s (from %s)',
+        $log->timestamp,
+        $log->url,
+        $log->referrer
+    );
+}
+```
+
+### Get 404 count by URL
+
+```php
+global $wpdb;
+$table = $wpdb->prefix . 'geoai_404_log';
+
+$top_404s = $wpdb->get_results(
+    "SELECT url, COUNT(*) as count 
+     FROM {$table} 
+     GROUP BY url 
+     ORDER BY count DESC 
+     LIMIT 10"
+);
+```
+
+### Manually trigger cleanup
+
+```php
+$monitor = GeoAI\Core\GeoAI_404::get_instance();
+// Cleanup is private, but runs automatically
+// Adjust retention via settings instead
+```
+
+## Privacy Considerations
+
+<Warning>
+IP address logging may be subject to GDPR and other privacy regulations. Ensure you have appropriate consent and privacy policies in place.
+</Warning>
+
+**Best Practices:**
+- Set reasonable retention periods (7-30 days)
+- Disclose IP logging in your privacy policy
+- Consider anonymizing IPs for GDPR compliance
+- Disable monitoring if not actively using the data
+
+## Performance
+
+The 404 monitor is designed for minimal overhead:
+
+- Single database INSERT per 404 (less than 5ms)
+- No queries on successful page loads
+- Automatic cleanup prevents table bloat
+- Indexed timestamp column for fast queries
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Redirects" icon="arrows-turn-right" href="/api/redirects">
+    Redirect manager class documentation
+  </Card>
+  <Card title="404 Monitor Feature" icon="magnifying-glass" href="/features/404-monitor">
+    User guide for 404 monitoring
+  </Card>
+  <Card title="Admin Class" icon="gear" href="/api/admin">
+    Settings management for 404 options
+  </Card>
+  <Card title="Architecture" icon="diagram-project" href="/developers/architecture">
+    Plugin structure and database schema
+  </Card>
+</CardGroup>

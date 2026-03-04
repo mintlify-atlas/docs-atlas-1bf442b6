@@ -82,7 +82,8 @@
               "api/sitemaps",
               "api/social",
               "api/breadcrumbs",
-              "api/redirects"
+              "api/redirects",
+              "api/404"
             ]
           },
           {
