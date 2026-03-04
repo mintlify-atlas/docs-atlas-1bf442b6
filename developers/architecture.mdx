@@ -1,0 +1,465 @@
+---
+title: Plugin Architecture
+description: Learn about the architecture and class structure of the GEO AI WordPress plugin
+---
+
+## Overview
+
+GEO AI is built as a modern WordPress plugin using object-oriented PHP with a focus on modularity, extensibility, and WordPress coding standards. The plugin uses a singleton pattern for core classes and namespaces to organize functionality.
+
+## Core Architecture
+
+### Plugin Structure
+
+```
+geo-ai/
+├── geo-ai.php              # Main plugin file
+├── includes/               # PHP classes
+│   ├── class-geoai-admin.php
+│   ├── class-geoai-rest.php
+│   ├── class-geoai-analyzer.php
+│   ├── class-geoai-compat.php
+│   ├── class-geoai-schema.php
+│   ├── class-geoai-sitemaps.php
+│   ├── class-geoai-meta.php
+│   ├── class-geoai-social.php
+│   ├── class-geoai-breadcrumbs.php
+│   ├── class-geoai-redirects.php
+│   ├── class-geoai-404.php
+│   ├── class-primary-category.php
+│   ├── analyzers/
+│   └── traits/
+├── blocks/                 # Gutenberg blocks
+│   └── answer-card/
+├── src/                    # JavaScript source
+├── assets/                 # Compiled assets
+└── vendor/                 # Third-party libraries
+```
+
+### Namespace Organization
+
+GEO AI uses PHP namespaces to organize code:
+
+- `GeoAI\` - Root namespace
+- `GeoAI\Admin\` - Admin interface classes
+- `GeoAI\REST\` - REST API endpoints
+- `GeoAI\Core\` - Core functionality classes
+- `GeoAI\Traits\` - Reusable traits
+- `GeoAI\Analyzers\` - Content analysis classes
+
+## Main Plugin Class
+
+The main plugin class `GeoAI_Plugin` uses a singleton pattern and handles initialization:
+
+```php geo-ai.php
+namespace GeoAI;
+
+class GeoAI_Plugin {
+    private static $instance = null;
+
+    public static function get_instance() {
+        if ( null === self::$instance ) {
+            self::$instance = new self();
+        }
+        return self::$instance;
+    }
+
+    private function __construct() {
+        $this->load_dependencies();
+        $this->init_hooks();
+    }
+
+    public function init() {
+        // Initialize components
+        Admin\GeoAI_Admin::get_instance();
+        REST\GeoAI_REST::get_instance();
+        Core\GeoAI_Schema::get_instance();
+        // ... other components
+        
+        do_action( 'geoai_init' );
+    }
+}
+```
+
+### Plugin Constants
+
+Defined in `geo-ai.php:26-30`:
+
+```php
+define( 'GEOAI_VERSION', '1.6.0' );
+define( 'GEOAI_PLUGIN_FILE', __FILE__ );
+define( 'GEOAI_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
+define( 'GEOAI_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
+define( 'GEOAI_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
+```
+
+## Core Components
+
+### Admin Interface (`GeoAI_Admin`)
+
+Handles all admin-side functionality:
+
+- Settings pages with tabbed interface
+- Meta boxes for post editing
+- Asset enqueuing (CSS/JS)
+- AJAX handlers
+- Bulk editor interface
+
+**Location**: `includes/class-geoai-admin.php`
+
+**Key Methods**:
+- `add_admin_menu()` - Registers admin menu pages
+- `register_settings()` - Registers plugin options
+- `enqueue_admin_assets()` - Loads admin scripts/styles
+- `enqueue_editor_assets()` - Loads Gutenberg editor assets
+
+### REST API (`GeoAI_REST`)
+
+Provides REST API endpoints for editor integration:
+
+**Location**: `includes/class-geoai-rest.php`
+
+**Endpoints**:
+
+<CodeGroup>
+```bash POST /geoai/v1/audit
+# Run AI-powered content audit
+curl -X POST \
+  https://example.com/wp-json/geoai/v1/audit \
+  -H 'Content-Type: application/json' \
+  -d '{"post_id": 123}'
+```
+
+```bash POST /geoai/v1/quick-fix
+# Apply automated content improvements
+curl -X POST \
+  https://example.com/wp-json/geoai/v1/quick-fix \
+  -H 'Content-Type: application/json' \
+  -d '{"post_id": 123, "fix_id": "insert_answer_card"}'
+```
+</CodeGroup>
+
+### AI Analyzer (`GeoAI_Analyzer`)
+
+Handles content analysis using Google Gemini API:
+
+**Location**: `includes/class-geoai-analyzer.php`
+
+**Key Features**:
+- Google Gemini API integration
+- 4-dimensional scoring (Answerability, Structure, Trust, Technical)
+- Automatic audit on post save (optional)
+- Background processing via Action Scheduler
+- Meta content generation (titles/descriptions)
+
+**Methods**:
+```php
+public function analyze_post( $post_id )
+public function generate_meta_content( $post_id )
+public function test_api_connection( $override_key = null )
+```
+
+### Schema Output (`GeoAI_Schema`)
+
+Generates structured data (JSON-LD):
+
+**Location**: `includes/class-geoai-schema.php`
+
+**Supported Schema Types**:
+- Article
+- WebSite (with SearchAction)
+- Organization
+- FAQPage (planned)
+- HowTo (planned)
+
+### Compatibility Layer (`GeoAI_Compat`)
+
+Detects and handles conflicts with other SEO plugins:
+
+**Location**: `includes/class-geoai-compat.php`
+
+**Detected Plugins**:
+- Yoast SEO
+- Rank Math
+- SEOPress
+- All in One SEO Pack
+
+**Mode**: Standalone (full control) or Coexist (suppress duplicate outputs)
+
+### Other Core Classes
+
+| Class | Purpose | Location |
+|-------|---------|----------|
+| `GeoAI_Meta` | Meta tags (title, description) | `includes/class-geoai-meta.php` |
+| `GeoAI_Social` | OpenGraph/Twitter Cards | `includes/class-geoai-social.php` |
+| `GeoAI_Sitemaps` | XML sitemap generation | `includes/class-geoai-sitemaps.php` |
+| `GeoAI_Breadcrumbs` | Breadcrumb navigation | `includes/class-geoai-breadcrumbs.php` |
+| `GeoAI_Redirects` | 301/302 redirect manager | `includes/class-geoai-redirects.php` |
+| `GeoAI_404` | 404 error logging | `includes/class-geoai-404.php` |
+| `Primary_Category` | Primary category selection | `includes/class-primary-category.php` |
+
+## Traits
+
+### Encryption Trait
+
+**Location**: `includes/traits/trait-encryption.php`
+
+Provides secure encryption for sensitive data (API keys):
+
+```php
+namespace GeoAI\Traits;
+
+trait Encryption {
+    protected function encrypt( $value )
+    protected function decrypt( $encrypted )
+    private function is_sodium_available()
+    private function encrypt_sodium( $value )
+    private function encrypt_fallback( $value )
+}
+```
+
+**Features**:
+- Uses `libsodium` when available (PHP 7.2+)
+- Fallback to XOR encryption for older systems
+- Automatic key generation and storage
+
+## Analyzer Classes
+
+**Location**: `includes/analyzers/`
+
+| Analyzer | Purpose |
+|----------|----------|
+| `Keyword_Analyzer` | Focus keyword optimization analysis |
+| `Readability_Analyzer` | Content readability scoring |
+| `SEO_Dashboard` | Dashboard metrics aggregation |
+| `Internal_Linking` | Internal link suggestions |
+| `Content_Insights` | Content quality insights |
+
+## Activation & Deactivation
+
+### Activation Hook
+
+**Location**: `geo-ai.php:152-166`
+
+```php
+public function activate() {
+    // Set default options
+    $this->set_default_options();
+    
+    // Add custom role capabilities
+    $this->add_capabilities();
+    
+    // Create 404 log table
+    $this->create_404_table();
+    
+    // Flush rewrite rules
+    flush_rewrite_rules();
+    
+    do_action( 'geoai_activated' );
+}
+```
+
+### Deactivation Hook
+
+```php
+public function deactivate() {
+    // Clear scheduled actions
+    if ( function_exists( 'as_unschedule_all_actions' ) ) {
+        as_unschedule_all_actions( 'geoai_audit_batch' );
+    }
+    
+    flush_rewrite_rules();
+    do_action( 'geoai_deactivated' );
+}
+```
+
+## Database Schema
+
+### 404 Log Table
+
+**Table**: `{$wpdb->prefix}geoai_404_log`
+
+```sql
+CREATE TABLE wp_geoai_404_log (
+    id bigint(20) NOT NULL AUTO_INCREMENT,
+    url varchar(255) NOT NULL,
+    referrer varchar(255) DEFAULT '',
+    ip varchar(50) DEFAULT '',
+    timestamp datetime DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id),
+    KEY url (url),
+    KEY timestamp (timestamp)
+);
+```
+
+### Post Meta Fields
+
+| Meta Key | Type | Description |
+|----------|------|-------------|
+| `_geoai_audit` | JSON string | Audit results from AI analysis |
+| `_geoai_audit_timestamp` | MySQL datetime | Last audit run timestamp |
+| `_geoai_title` | string | Custom SEO title |
+| `_geoai_meta_desc` | string | Custom meta description |
+| `_geoai_focus_keyword` | string | Focus keyword |
+| `_geoai_robots` | string | Robots meta directives |
+| `_geoai_canonical` | URL | Custom canonical URL |
+
+## Plugin Options
+
+**Option Group**: `geoai_settings`
+
+All options are stored in `wp_options` table:
+
+- `geoai_api_key` - Google Gemini API key
+- `geoai_autorun_on_save` - Boolean for auto-audit
+- `geoai_compat_mode` - Compatibility mode (standalone/coexist)
+- `geoai_titles_templates` - Array of title templates
+- `geoai_social_defaults` - OpenGraph/Twitter defaults
+- `geoai_schema_defaults` - Schema type enablement
+- `geoai_sitemaps` - Sitemap configuration
+- `geoai_crawler_prefs` - AI crawler blocking preferences
+- `geoai_redirects` - Redirect rules array
+- `geoai_404_settings` - 404 logging configuration
+- `geoai_roles_caps` - Role capabilities
+- `geoai_debug_mode` - Debug mode toggle
+
+## Design Patterns
+
+### Singleton Pattern
+
+All core classes use singleton pattern to ensure single instance:
+
+```php
+private static $instance = null;
+
+public static function get_instance() {
+    if ( null === self::$instance ) {
+        self::$instance = new self();
+    }
+    return self::$instance;
+}
+
+private function __construct() {
+    // Initialize
+}
+```
+
+### Hook-Based Architecture
+
+The plugin exposes numerous action hooks for extensibility:
+
+```php
+do_action( 'geoai_init' );
+do_action( 'geoai_activated' );
+do_action( 'geoai_deactivated' );
+do_action( 'geoai_add_capabilities' );
+```
+
+### Filter-Based Customization
+
+Filters allow modification of output and behavior:
+
+```php
+apply_filters( 'geoai_schema_output', $schema );
+apply_filters( 'the_content', $post->post_content );
+```
+
+## Dependencies
+
+### PHP Dependencies
+
+- **WordPress**: 6.2+
+- **PHP**: 8.1+
+- **Optional**: libsodium (for encryption)
+- **Optional**: Action Scheduler (bundled in `vendor/`)
+
+### JavaScript Dependencies
+
+Defined in `package.json`:
+
+```json
+{
+  "dependencies": {
+    "@wordpress/api-fetch": "^7.0.0",
+    "@wordpress/block-editor": "^13.0.0",
+    "@wordpress/blocks": "^13.0.0",
+    "@wordpress/components": "^28.0.0",
+    "@wordpress/data": "^10.0.0",
+    "@wordpress/edit-post": "^8.0.0",
+    "@wordpress/element": "^6.0.0",
+    "@wordpress/i18n": "^5.0.0",
+    "@wordpress/plugins": "^7.0.0"
+  }
+}
+```
+
+## Security Measures
+
+### Nonce Verification
+
+All forms and AJAX requests use WordPress nonces:
+
+```php
+wp_nonce_field( 'geoai_bulk_save', 'geoai_bulk_nonce' );
+check_admin_referer( 'geoai_bulk_save', 'geoai_bulk_nonce' );
+```
+
+### Capability Checks
+
+```php
+if ( ! current_user_can( 'manage_options' ) ) {
+    wp_die( __( 'Unauthorized access', 'geo-ai' ) );
+}
+```
+
+### Data Sanitization
+
+All user input is sanitized:
+
+```php
+$post_id = absint( $_POST['post_id'] );
+$fix_id = sanitize_text_field( $_POST['fix_id'] );
+$api_key = sanitize_text_field( $value );
+```
+
+### API Key Storage
+
+API keys are encrypted using libsodium or fallback encryption.
+
+## Performance Optimization
+
+### Lazy Loading
+
+Components are only initialized when needed.
+
+### Transient Caching
+
+Audit results and schema data can be cached using WordPress transients.
+
+### Background Processing
+
+Heavy operations use Action Scheduler for async processing:
+
+```php
+if ( function_exists( 'as_enqueue_async_action' ) ) {
+    as_enqueue_async_action( 'geoai_background_audit', 
+        array( 'post_id' => $post_id ) );
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Gutenberg Blocks" icon="cube" href="/developers/blocks">
+    Learn how to develop custom blocks for GEO AI
+  </Card>
+  <Card title="REST API" icon="code" href="/developers/rest-api">
+    Explore the REST API endpoints
+  </Card>
+  <Card title="Extending" icon="puzzle-piece" href="/developers/extending">
+    Extend GEO AI with hooks and filters
+  </Card>
+  <Card title="Contributing" icon="code-branch" href="/developers/contributing">
+    Contribute to the project
+  </Card>
+</CardGroup>

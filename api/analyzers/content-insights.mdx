@@ -1,0 +1,350 @@
+---
+title: Content Insights
+description: Analyzes content for word frequency, metrics, and recommendations
+---
+
+## Overview
+
+The `Content_Insights` class provides comprehensive content analysis including word frequency, phrase detection, content metrics, and intelligent recommendations. It helps content creators understand their writing patterns and optimize for engagement.
+
+**Namespace:** `GeoAI\Analyzers`
+
+**File:** `includes/analyzers/class-content-insights.php`
+
+## Purpose
+
+Content Insights provides data-driven analysis of:
+
+- **Word Frequency**: Top 30 most common words (excluding stop words)
+- **Phrase Frequency**: Common 2-3 word phrases appearing 2+ times
+- **Content Metrics**: Comprehensive statistics about the content
+- **Prominent Words**: Key terms that define the content
+- **Recommendations**: Context-aware suggestions for improvement
+
+## Public Methods
+
+### analyze()
+
+Analyzes content and generates comprehensive insights.
+
+<ParamField path="content" type="string" required>
+  Post content (HTML or plain text)
+</ParamField>
+
+<ParamField path="title" type="string" default="">
+  Post title (optional, used for prominent words analysis)
+</ParamField>
+
+**Returns:** `array` - Insights data
+
+**Return Structure:**
+
+```php
+array(
+    'word_frequency'   => array, // Top 30 words with counts
+    'phrase_frequency' => array, // Top 15 phrases (2-3 words)
+    'content_metrics'  => array, // Detailed content statistics
+    'prominent_words'  => array, // Top 10 defining words
+    'recommendations'  => array  // Context-aware suggestions
+)
+```
+
+## Return Data Structures
+
+### Word Frequency
+
+Array of top 30 words (minimum 3 characters, excluding stop words):
+
+```php
+array(
+    array(
+        'word'       => 'wordpress', // The word
+        'count'      => 15,          // Occurrences
+        'percentage' => 2.5          // Percentage of total words
+    ),
+    // ... more entries
+)
+```
+
+### Phrase Frequency
+
+Array of top 15 recurring phrases:
+
+```php
+array(
+    array(
+        'phrase' => 'wordpress seo',  // 2-3 word phrase
+        'count'  => 5                 // Occurrences
+    ),
+    // ... more entries
+)
+```
+
+### Content Metrics
+
+Comprehensive content statistics:
+
+```php
+array(
+    'word_count'              => 1250,  // Total words
+    'sentence_count'          => 75,    // Total sentences
+    'paragraph_count'         => 18,    // Total paragraphs
+    'character_count'         => 7500,  // Total characters
+    'unique_words'            => 450,   // Unique word count
+    'lexical_diversity'       => 36.0,  // Percentage (unique/total)
+    'reading_time'            => 7,     // Minutes at 200 wpm
+    'speaking_time'           => 9,     // Minutes at 150 wpm
+    'avg_words_per_sentence'  => 16.7,  // Average sentence length
+    'avg_words_per_paragraph' => 69.4   // Average paragraph length
+)
+```
+
+### Prominent Words
+
+Array of top 10 defining words (minimum 4 characters):
+
+```php
+array(
+    'wordpress',
+    'optimization',
+    'content',
+    // ... 7 more words
+)
+```
+
+### Recommendations
+
+Context-aware suggestions based on metrics:
+
+```php
+array(
+    array(
+        'type'    => 'warning',  // 'warning', 'success', or 'info'
+        'message' => 'Content is short (250 words). Aim for at least 300 words for better SEO.'
+    ),
+    // ... more recommendations
+)
+```
+
+## Usage Examples
+
+### Basic Analysis
+
+```php
+use GeoAI\Analyzers\Content_Insights;
+
+$insights = new Content_Insights();
+$result = $insights->analyze( $post_content, $post_title );
+
+// Display top words
+echo '<h3>Top Keywords:</h3><ul>';
+foreach ( array_slice( $result['word_frequency'], 0, 10 ) as $word_data ) {
+    echo "<li>{$word_data['word']}: {$word_data['count']} ({$word_data['percentage']}%)</li>";
+}
+echo '</ul>';
+```
+
+### Word Cloud Data
+
+```php
+$result = $insights->analyze( $content, $title );
+
+// Prepare data for word cloud visualization
+$word_cloud_data = array_map( function( $item ) {
+    return array(
+        'text'   => $item['word'],
+        'weight' => $item['count']
+    );
+}, $result['word_frequency'] );
+
+// Output as JSON for JavaScript word cloud library
+echo json_encode( $word_cloud_data );
+```
+
+### Content Metrics Dashboard
+
+```php
+$result = $insights->analyze( $content, $title );
+$metrics = $result['content_metrics'];
+
+echo "<div class='content-stats'>";
+echo "<div class='stat'><strong>{$metrics['word_count']}</strong> words</div>";
+echo "<div class='stat'><strong>{$metrics['reading_time']}</strong> min read</div>";
+echo "<div class='stat'><strong>{$metrics['lexical_diversity']}%</strong> vocabulary diversity</div>";
+echo "<div class='stat'><strong>{$metrics['unique_words']}</strong> unique words</div>";
+echo "</div>";
+```
+
+### Phrase Analysis
+
+```php
+$result = $insights->analyze( $content );
+
+if ( ! empty( $result['phrase_frequency'] ) ) {
+    echo '<h3>Common Phrases:</h3><ul>';
+    foreach ( $result['phrase_frequency'] as $phrase_data ) {
+        echo "<li>\"{$phrase_data['phrase']}\" - {$phrase_data['count']} times</li>";
+    }
+    echo '</ul>';
+} else {
+    echo '<p>No recurring phrases found.</p>';
+}
+```
+
+### SEO Keyword Suggestions
+
+```php
+$result = $insights->analyze( $content, $title );
+
+echo '<h3>Suggested Focus Keywords:</h3>';
+echo '<p>Based on content analysis, consider these keywords:</p><ul>';
+
+foreach ( $result['prominent_words'] as $word ) {
+    echo "<li>{$word}</li>";
+}
+
+echo '</ul>';
+```
+
+### Recommendations Display
+
+```php
+$result = $insights->analyze( $content, $title );
+
+if ( ! empty( $result['recommendations'] ) ) {
+    echo '<div class="insights-recommendations">';
+    echo '<h3>Content Recommendations:</h3>';
+    
+    foreach ( $result['recommendations'] as $rec ) {
+        $class = 'recommendation-' . $rec['type'];
+        $icon = $rec['type'] === 'success' ? '✓' : ($rec['type'] === 'warning' ? '⚠' : 'ℹ');
+        echo "<div class='{$class}'>{$icon} {$rec['message']}</div>";
+    }
+    
+    echo '</div>';
+}
+```
+
+### Compare Content Over Time
+
+```php
+function track_content_metrics( $post_id ) {
+    $post = get_post( $post_id );
+    $insights = new Content_Insights();
+    
+    $result = $insights->analyze( $post->post_content, $post->post_title );
+    
+    // Store metrics history
+    $history = get_post_meta( $post_id, '_content_metrics_history', true ) ?: array();
+    $history[] = array(
+        'date'    => current_time( 'mysql' ),
+        'metrics' => $result['content_metrics'],
+    );
+    
+    update_post_meta( $post_id, '_content_metrics_history', $history );
+    
+    // Store current metrics for quick access
+    update_post_meta( $post_id, '_content_metrics', $result['content_metrics'] );
+    update_post_meta( $post_id, '_prominent_words', $result['prominent_words'] );
+}
+```
+
+### Content Quality Score
+
+```php
+function calculate_content_quality_score( $content, $title ) {
+    $insights = new Content_Insights();
+    $result = $insights->analyze( $content, $title );
+    
+    $metrics = $result['content_metrics'];
+    $score = 0;
+    
+    // Word count (max 30 points)
+    if ( $metrics['word_count'] >= 1500 ) {
+        $score += 30;
+    } elseif ( $metrics['word_count'] >= 800 ) {
+        $score += 20;
+    } elseif ( $metrics['word_count'] >= 300 ) {
+        $score += 10;
+    }
+    
+    // Lexical diversity (max 25 points)
+    if ( $metrics['lexical_diversity'] >= 50 ) {
+        $score += 25;
+    } elseif ( $metrics['lexical_diversity'] >= 40 ) {
+        $score += 15;
+    }
+    
+    // Sentence length (max 20 points)
+    if ( $metrics['avg_words_per_sentence'] >= 12 && $metrics['avg_words_per_sentence'] <= 20 ) {
+        $score += 20;
+    }
+    
+    // Paragraph length (max 15 points)
+    if ( $metrics['avg_words_per_paragraph'] <= 150 ) {
+        $score += 15;
+    }
+    
+    // Recommendations (max 10 points)
+    $score += max( 0, 10 - count( $result['recommendations'] ) * 2 );
+    
+    return $score;
+}
+```
+
+## Metrics Reference
+
+### Reading Time Calculation
+
+- **Reading Speed**: 200 words per minute (industry standard)
+- **Formula**: `ceil(word_count / 200)`
+
+### Speaking Time Calculation
+
+- **Speaking Speed**: 150 words per minute (average presentation speed)
+- **Formula**: `ceil(word_count / 150)`
+
+### Lexical Diversity
+
+- **Formula**: `(unique_words / total_words) * 100`
+- **Interpretation**:
+  - < 40%: Low vocabulary diversity
+  - 40-60%: Good diversity
+  - > 60%: High diversity
+
+## Stop Words
+
+The analyzer filters common English stop words including:
+
+- Articles: the, a, an
+- Conjunctions: and, or, but
+- Prepositions: in, on, at, to, for, of, with, by, from
+- Pronouns: I, you, he, she, it, we, they
+- Auxiliary verbs: is, are, was, were, be, been, being, have, has, had
+- Common words: this, that, these, those, what, which, who, when, where, why, how
+
+## Recommendation Triggers
+
+| Condition | Type | Message |
+|-----------|------|----------|
+| Word count < 300 | warning | Aim for at least 300 words for better SEO |
+| Word count ≥ 1500 | success | Long-form content (1500+ words) ranks better |
+| Lexical diversity < 40% | info | Try using more varied vocabulary |
+| Avg sentence length > 25 | warning | Break up long sentences |
+| Avg paragraph length > 150 | warning | Aim for 100-150 words per paragraph |
+| Reading time > 10 min | info | Consider adding table of contents |
+
+## Best Practices
+
+1. **Word Count**: Target 800-1500+ words for in-depth content
+2. **Lexical Diversity**: Aim for 40-60% to show vocabulary range without repetition
+3. **Prominent Words**: Use for SEO keyword suggestions and content theme validation
+4. **Phrase Frequency**: Identify key topics and ensure consistent messaging
+5. **Reading Time**: Display to users to set expectations
+6. **Recommendations**: Address warnings to improve content quality
+
+## Related
+
+- [Keyword Analyzer](/api/analyzers/keyword)
+- [Readability Analyzer](/api/analyzers/readability)
+- [SEO Dashboard](/api/analyzers/seo-dashboard)

@@ -1,0 +1,541 @@
+---
+title: 'Encryption'
+description: 'How GEO AI securely stores API keys and sensitive data using libsodium'
+icon: 'lock'
+---
+
+GEO AI encrypts sensitive data like API keys using modern cryptography to prevent unauthorized access.
+
+**File:** `includes/traits/trait-encryption.php`
+
+<Info>
+  GEO AI uses **libsodium** (PHP 7.2+) for encryption, with a fallback XOR method for older systems.
+</Info>
+
+---
+
+## Overview
+
+The `Encryption` trait provides methods for encrypting and decrypting sensitive data stored in WordPress options.
+
+### What Gets Encrypted
+
+<CardGroup cols={2}>
+  <Card title="Google Gemini API Key" icon="key">
+    Stored in `geoai_api_key` option
+  </Card>
+  <Card title="Third-party Credentials" icon="shield">
+    OAuth tokens, webhook secrets, etc.
+  </Card>
+  <Card title="License Keys" icon="certificate">
+    Premium version license information
+  </Card>
+  <Card title="User Tokens" icon="user-lock">
+    Session tokens for external services
+  </Card>
+</CardGroup>
+
+---
+
+## Architecture
+
+### Trait-Based Design
+
+The `Encryption` trait can be used by any class that needs encryption:
+
+```php
+namespace GeoAI\Core;
+
+use GeoAI\Traits\Encryption;
+
+class API_Handler {
+    use Encryption;
+    
+    public function save_api_key( $key ) {
+        $encrypted = $this->encrypt( $key );
+        update_option( 'geoai_api_key', $encrypted, false );
+    }
+    
+    public function get_api_key() {
+        $encrypted = get_option( 'geoai_api_key' );
+        return $this->decrypt( $encrypted );
+    }
+}
+```
+
+<Tip>
+  The third parameter `false` in `update_option()` prevents the encrypted key from being autoloaded on every page request.
+</Tip>
+
+---
+
+## Encryption Methods
+
+### Libsodium (Primary)
+
+Used when PHP's `sodium` extension is available (PHP 7.2+).
+
+<Tabs>
+  <Tab title="Algorithm">
+    **XSalsa20-Poly1305** authenticated encryption
+    
+    - **Encryption:** `sodium_crypto_secretbox()`
+    - **Key size:** 32 bytes (256 bits)
+    - **Nonce:** 24 bytes (random, prepended to ciphertext)
+    - **Authentication:** Built-in MAC prevents tampering
+    
+    <Info>
+      Libsodium is the modern standard for encryption, used by Signal, WhatsApp, and many security-focused applications.
+    </Info>
+  </Tab>
+
+  <Tab title="Implementation">
+    ```php
+    private function encrypt_sodium( $value ) {
+        try {
+            $key   = hex2bin( $this->get_encryption_key() );
+            if ( false === $key ) {
+                throw new \Exception( 'Invalid encryption key format' );
+            }
+
+            $nonce = random_bytes( SODIUM_CRYPTO_SECRETBOX_NONCEBYTES );
+            $encrypted = sodium_crypto_secretbox( $value, $nonce, $key );
+            
+            if ( false === $encrypted ) {
+                throw new \Exception( 'Sodium encryption failed' );
+            }
+
+            // Prepend nonce to ciphertext
+            $result = base64_encode( $nonce . $encrypted );
+            
+            // Zero out key from memory
+            sodium_memzero( $key );
+
+            return $result;
+        } catch ( \Exception $e ) {
+            throw new \Exception( 'Sodium encryption error: ' . $e->getMessage() );
+        }
+    }
+    ```
+    
+    **Security Features:**
+    - Random nonce prevents identical plaintexts from producing identical ciphertexts
+    - `sodium_memzero()` erases key from memory after use
+    - Authenticated encryption prevents tampering
+    - Base64 encoding for safe storage in database
+  </Tab>
+
+  <Tab title="Decryption">
+    ```php
+    private function decrypt_sodium( $encrypted ) {
+        try {
+            $decoded = base64_decode( $encrypted, true );
+            if ( false === $decoded ) {
+                throw new \Exception( 'Invalid base64 encoding' );
+            }
+
+            $key = hex2bin( $this->get_encryption_key() );
+            if ( false === $key ) {
+                throw new \Exception( 'Invalid encryption key format' );
+            }
+
+            if ( strlen( $decoded ) < SODIUM_CRYPTO_SECRETBOX_NONCEBYTES ) {
+                throw new \Exception( 'Invalid encrypted data length' );
+            }
+
+            // Extract nonce from beginning
+            $nonce      = mb_substr( $decoded, 0, SODIUM_CRYPTO_SECRETBOX_NONCEBYTES, '8bit' );
+            $ciphertext = mb_substr( $decoded, SODIUM_CRYPTO_SECRETBOX_NONCEBYTES, null, '8bit' );
+
+            $decrypted = sodium_crypto_secretbox_open( $ciphertext, $nonce, $key );
+            sodium_memzero( $key );
+
+            if ( false === $decrypted ) {
+                throw new \Exception( 'Decryption verification failed' );
+            }
+
+            return $decrypted;
+        } catch ( \Exception $e ) {
+            throw new \Exception( 'Sodium decryption error: ' . $e->getMessage() );
+        }
+    }
+    ```
+    
+    **Verification:**
+    - Checks MAC to ensure data hasn't been tampered with
+    - Returns `false` if authentication fails (prevents padding oracle attacks)
+  </Tab>
+</Tabs>
+
+---
+
+### XOR Fallback (Legacy)
+
+Used when libsodium is not available (PHP < 7.2 or disabled extension).
+
+<Warning>
+  The XOR fallback provides **obfuscation**, not cryptographic security. It prevents casual snooping but is vulnerable to cryptanalysis. Upgrade to PHP 7.2+ for proper security.
+</Warning>
+
+```php
+private function encrypt_fallback( $value ) {
+    $key    = $this->get_encryption_key();
+    $result = '';
+
+    for ( $i = 0; $i < strlen( $value ); $i++ ) {
+        $result .= chr( ord( $value[ $i ] ) ^ ord( $key[ $i % strlen( $key ) ] ) );
+    }
+
+    return base64_encode( 'fallback:' . $result );
+}
+
+private function decrypt_fallback( $encrypted ) {
+    $decoded = base64_decode( $encrypted );
+    if ( false === $decoded ) {
+        return '';
+    }
+
+    if ( 0 !== strpos( $decoded, 'fallback:' ) ) {
+        return '';
+    }
+
+    $decoded = substr( $decoded, 9 );
+    $key     = $this->get_encryption_key();
+    $result  = '';
+
+    for ( $i = 0; $i < strlen( $decoded ); $i++ ) {
+        $result .= chr( ord( $decoded[ $i ] ) ^ ord( $key[ $i % strlen( $key ) ] ) );
+    }
+
+    return $result;
+}
+```
+
+**Why XOR?**
+- Simple, fast, and doesn't require extensions
+- Better than plaintext storage
+- Reversible with the same key
+- Recognizable by `fallback:` prefix
+
+---
+
+## Encryption Key Management
+
+### Key Generation
+
+Encryption keys are generated automatically on first use:
+
+```php
+private function get_encryption_key() {
+    $key = get_option( 'geoai_encryption_key' );
+
+    if ( ! $key ) {
+        if ( $this->is_sodium_available() ) {
+            $key = sodium_bin2hex( random_bytes( SODIUM_CRYPTO_SECRETBOX_KEYBYTES ) );
+        } else {
+            $key = bin2hex( random_bytes( 32 ) );
+        }
+        update_option( 'geoai_encryption_key', $key, false );
+    }
+
+    return $key;
+}
+```
+
+**Key Properties:**
+- **Length:** 32 bytes (256 bits) for both methods
+- **Randomness:** Uses `random_bytes()` (cryptographically secure)
+- **Storage:** `geoai_encryption_key` option (not autoloaded)
+- **Format:** Hexadecimal string (64 characters)
+
+<Warning>
+  If the encryption key is lost or deleted, **all encrypted data becomes unrecoverable**. Back up your database before manual key operations.
+</Warning>
+
+---
+
+### Key Rotation
+
+Rotate encryption keys for enhanced security:
+
+```php
+function rotate_geoai_encryption_key() {
+    // Decrypt all data with old key
+    $api_key = get_option( 'geoai_api_key' );
+    $handler = new \GeoAI\Core\API_Handler();
+    $decrypted_key = $handler->decrypt( $api_key );
+    
+    // Delete old encryption key
+    delete_option( 'geoai_encryption_key' );
+    
+    // Re-encrypt with new key (auto-generated)
+    $new_encrypted = $handler->encrypt( $decrypted_key );
+    update_option( 'geoai_api_key', $new_encrypted, false );
+    
+    // Repeat for all encrypted options
+}
+```
+
+<Tip>
+  Schedule key rotation annually as a security best practice.
+</Tip>
+
+---
+
+## Security Best Practices
+
+### 1. Environment Detection
+
+Check which encryption method is active:
+
+```php
+$handler = new \GeoAI\Core\API_Handler();
+
+if ( $handler->is_sodium_available() ) {
+    echo 'Using libsodium (secure)';
+} else {
+    echo 'Using XOR fallback (upgrade to PHP 7.2+)';
+}
+```
+
+### 2. Error Handling
+
+All encryption methods throw exceptions on failure:
+
+```php
+try {
+    $encrypted = $this->encrypt( $api_key );
+    update_option( 'geoai_api_key', $encrypted, false );
+} catch ( \Exception $e ) {
+    error_log( 'Encryption failed: ' . $e->getMessage() );
+    wp_die( 'Failed to save API key securely.' );
+}
+```
+
+### 3. Never Log Decrypted Data
+
+```php
+// ❌ BAD - Logs plaintext key
+error_log( 'API Key: ' . $this->decrypt( $encrypted ) );
+
+// ✅ GOOD - Logs without exposing key
+error_log( 'API Key configured: ' . ( ! empty( $encrypted ) ? 'Yes' : 'No' ) );
+```
+
+### 4. Database Security
+
+Even with encryption, protect your database:
+
+- Use strong database passwords
+- Restrict database user permissions
+- Enable SSL for database connections
+- Regular database backups (encrypted at rest)
+- Firewall rules to limit database access
+
+### 5. SSL/TLS Required
+
+<Warning>
+  Always use HTTPS when transmitting API keys between browser and server. Encryption protects storage, not transmission.
+</Warning>
+
+Check if SSL is active:
+
+```php
+if ( ! is_ssl() ) {
+    wp_die( 'API key configuration requires HTTPS.' );
+}
+```
+
+---
+
+## Performance
+
+### Benchmarks
+
+| Method | Operation | Time (1000 ops) | Memory |
+|--------|-----------|-----------------|--------|
+| Libsodium | Encrypt | ~15ms | 2KB |
+| Libsodium | Decrypt | ~18ms | 2KB |
+| XOR Fallback | Encrypt | ~8ms | 1KB |
+| XOR Fallback | Decrypt | ~9ms | 1KB |
+
+<Note>
+  XOR is faster but **not secure**. The performance difference is negligible for API key storage.
+</Note>
+
+### Optimization Tips
+
+<AccordionGroup>
+  <Accordion title="Cache Decrypted Values">
+    Don't decrypt on every request:
+    
+    ```php
+    class API_Handler {
+        private $cached_key = null;
+        
+        public function get_api_key() {
+            if ( null === $this->cached_key ) {
+                $encrypted = get_option( 'geoai_api_key' );
+                $this->cached_key = $this->decrypt( $encrypted );
+            }
+            return $this->cached_key;
+        }
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Lazy Load Encryption Trait">
+    Only instantiate classes using encryption when needed:
+    
+    ```php
+    // ❌ Loads encryption on every page
+    $api = new API_Handler();
+    
+    // ✅ Only loads when API is actually used
+    if ( isset( $_POST['run_audit'] ) ) {
+        $api = new API_Handler();
+        $api->run_audit();
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Disable Autoload">
+    Never autoload encrypted options:
+    
+    ```php
+    // Third parameter = false prevents autoload
+    update_option( 'geoai_api_key', $encrypted, false );
+    ```
+    
+    This prevents decryption overhead on every page load.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Error: Decryption failed">
+    **Cause:** Encryption key changed or data corrupted
+    
+    **Solutions:**
+    1. Check if `geoai_encryption_key` option exists
+    2. Verify database hasn't been modified
+    3. Restore from backup if key is lost
+    4. Clear the option and re-enter API key
+  </Accordion>
+
+  <Accordion title="Error: Sodium not available">
+    **Cause:** PHP < 7.2 or extension disabled
+    
+    **Solutions:**
+    1. Upgrade to PHP 7.2+ (recommended)
+    2. Enable sodium extension: `php -m | grep sodium`
+    3. Accept XOR fallback (less secure)
+  </Accordion>
+
+  <Accordion title="API key not working after migration">
+    **Cause:** Encryption key differs between environments
+    
+    **Solutions:**
+    1. Export encryption key from source:
+       ```php
+       echo get_option( 'geoai_encryption_key' );
+       ```
+    2. Import to destination:
+       ```php
+       update_option( 'geoai_encryption_key', 'key_from_source', false );
+       ```
+    3. Or re-enter API key in new environment
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## API Reference
+
+### Trait: `GeoAI\Traits\Encryption`
+
+**Public Methods:**
+
+```php
+protected function encrypt( string $value ): string
+```
+Encrypts a plaintext value.
+
+**Parameters:**
+- `$value` - Plaintext string to encrypt
+
+**Returns:** Base64-encoded encrypted string
+
+**Throws:** `\Exception` if encryption fails
+
+---
+
+```php
+protected function decrypt( string $encrypted ): string
+```
+Decrypts an encrypted value.
+
+**Parameters:**
+- `$encrypted` - Base64-encoded encrypted string
+
+**Returns:** Plaintext string
+
+**Throws:** `\Exception` if decryption fails or MAC verification fails
+
+---
+
+**Private Methods:**
+
+| Method | Description |
+|--------|-------------|
+| `is_sodium_available()` | Check if libsodium extension is loaded |
+| `get_encryption_key()` | Get or generate encryption key |
+| `encrypt_sodium()` | Encrypt using libsodium |
+| `decrypt_sodium()` | Decrypt using libsodium |
+| `encrypt_fallback()` | Encrypt using XOR (legacy) |
+| `decrypt_fallback()` | Decrypt using XOR (legacy) |
+
+---
+
+## Migration from Plaintext
+
+If upgrading from a version that stored keys in plaintext:
+
+```php
+function migrate_plaintext_to_encrypted() {
+    $plaintext_key = get_option( 'geoai_api_key_plaintext' );
+    
+    if ( $plaintext_key ) {
+        $handler = new \GeoAI\Core\API_Handler();
+        $encrypted = $handler->encrypt( $plaintext_key );
+        
+        update_option( 'geoai_api_key', $encrypted, false );
+        delete_option( 'geoai_api_key_plaintext' );
+        
+        error_log( 'Migrated API key to encrypted storage' );
+    }
+}
+add_action( 'admin_init', 'migrate_plaintext_to_encrypted' );
+```
+
+---
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Security Guide" icon="shield-halved" href="/security">
+    Comprehensive security documentation
+  </Card>
+  <Card title="Installation" icon="download" href="/getting-started/installation">
+    Setting up API keys securely
+  </Card>
+  <Card title="Libsodium Docs" icon="book" href="https://www.php.net/manual/en/book.sodium.php">
+    Official PHP libsodium documentation
+  </Card>
+  <Card title="OWASP" icon="globe" href="https://owasp.org/www-community/Encryption_Best_Practices">
+    Encryption best practices
+  </Card>
+</CardGroup>

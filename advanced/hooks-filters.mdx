@@ -1,0 +1,577 @@
+---
+title: 'Hooks & Filters'
+description: 'Customize GEO AI behavior with WordPress actions and filters'
+icon: 'filter'
+---
+
+GEO AI provides hooks and filters throughout the codebase for developers to customize functionality without modifying core files.
+
+<Tip>
+  All hooks follow WordPress naming conventions and are prefixed with `geoai_`.
+</Tip>
+
+---
+
+## Filters
+
+Filters allow you to modify data before it's used or displayed.
+
+### Compatibility
+
+#### `geoai_detected_conflicts`
+
+Modify the list of detected SEO plugin conflicts.
+
+**Location:** `includes/class-geoai-compat.php:52`
+
+```php
+apply_filters( 'geoai_detected_conflicts', array $conflicts )
+```
+
+**Parameters:**
+- `$conflicts` *(array)* - List of detected plugin names
+
+**Example:**
+
+```php
+add_filter( 'geoai_detected_conflicts', function( $conflicts ) {
+    // Add custom SEO plugin detection
+    if ( defined( 'MY_SEO_PLUGIN_VERSION' ) ) {
+        $conflicts[] = 'My SEO Plugin';
+    }
+    
+    // Remove a plugin from conflict detection
+    $key = array_search( 'Yoast SEO', $conflicts );
+    if ( false !== $key ) {
+        unset( $conflicts[ $key ] );
+    }
+    
+    return $conflicts;
+});
+```
+
+**Use Cases:**
+- Detect custom or niche SEO plugins
+- Force compatibility mode with specific plugins
+- Override automatic detection logic
+
+---
+
+### Schema
+
+#### `geoai_schema_output`
+
+Modify schema markup before it's output to the page.
+
+**Location:** `includes/class-geoai-schema.php:51`
+
+```php
+apply_filters( 'geoai_schema_output', array $schema )
+```
+
+**Parameters:**
+- `$schema` *(array)* - JSON-LD schema array
+
+**Example:**
+
+```php
+add_filter( 'geoai_schema_output', function( $schema ) {
+    // Add custom property to Article schema
+    if ( isset( $schema['@type'] ) && 'Article' === $schema['@type'] ) {
+        $schema['author']['sameAs'] = array(
+            'https://twitter.com/yourhandle',
+            'https://linkedin.com/in/yourprofile',
+        );
+    }
+    
+    // Add organization logo
+    if ( isset( $schema['publisher'] ) ) {
+        $schema['publisher']['logo'] = array(
+            '@type'  => 'ImageObject',
+            'url'    => get_theme_file_uri( '/assets/logo.png' ),
+            'width'  => 600,
+            'height' => 60,
+        );
+    }
+    
+    return $schema;
+});
+```
+
+**Use Cases:**
+- Add custom schema properties
+- Enhance author/publisher data
+- Inject third-party identifiers (Google Analytics, Facebook, etc.)
+- Override schema values conditionally
+
+---
+
+### Breadcrumbs
+
+#### `geoai_breadcrumb_items`
+
+Modify breadcrumb items before rendering.
+
+**Location:** `includes/class-geoai-breadcrumbs.php:105`
+
+```php
+apply_filters( 'geoai_breadcrumb_items', array $items )
+```
+
+**Parameters:**
+- `$items` *(array)* - Array of breadcrumb items
+
+**Item Structure:**
+```php
+array(
+    'title' => 'Page Title',
+    'url'   => 'https://example.com/page',
+)
+```
+
+**Example:**
+
+```php
+add_filter( 'geoai_breadcrumb_items', function( $items ) {
+    // Always start with custom home text
+    if ( ! empty( $items ) ) {
+        $items[0]['title'] = 'Start Here';
+    }
+    
+    // Add custom breadcrumb for specific post type
+    if ( is_singular( 'product' ) ) {
+        // Insert "Shop" before current item
+        $current = array_pop( $items );
+        $items[] = array(
+            'title' => 'Shop',
+            'url'   => home_url( '/shop' ),
+        );
+        $items[] = $current;
+    }
+    
+    // Remove URL from last item (current page)
+    $last_key = array_key_last( $items );
+    unset( $items[ $last_key ]['url'] );
+    
+    return $items;
+});
+```
+
+**Use Cases:**
+- Customize home breadcrumb text
+- Add intermediate breadcrumb levels
+- Modify URLs for custom post types
+- Remove URLs from active breadcrumb
+
+---
+
+### Content Analysis
+
+#### `the_content`
+
+GEO AI uses the standard WordPress `the_content` filter when analyzing posts.
+
+**Location:** `includes/class-geoai-analyzer.php:137`
+
+```php
+$content = apply_filters( 'the_content', $post->post_content );
+```
+
+This ensures analyzed content matches what's displayed on the frontend, including:
+- Shortcode expansion
+- Block rendering
+- Auto-paragraph insertion
+- Content from page builders
+
+**Example:**
+
+```php
+// Exclude specific shortcodes from analysis
+add_filter( 'the_content', function( $content ) {
+    // Only during GEO AI analysis
+    if ( doing_filter( 'geoai_analyze_content' ) ) {
+        // Remove advertisement shortcodes
+        $content = preg_replace( '/\[advertisement.*?\]/', '', $content );
+    }
+    return $content;
+}, 5 ); // Priority 5 to run before GEO AI
+```
+
+---
+
+## Actions
+
+Actions allow you to execute custom code at specific points in GEO AI's execution.
+
+### Common WordPress Actions
+
+GEO AI hooks into standard WordPress actions:
+
+#### `init`
+
+Compatibility mode initialization.
+
+```php
+add_action( 'init', array( $this, 'init_compat_mode' ) );
+```
+
+**Example - Disable compatibility mode programmatically:**
+
+```php
+add_action( 'init', function() {
+    // Force standalone mode on staging
+    if ( defined( 'WP_ENV' ) && 'staging' === WP_ENV ) {
+        update_option( 'geoai_compat_mode', 'standalone' );
+    }
+}, 5 ); // Before GEO AI's init
+```
+
+---
+
+#### `save_post`
+
+Dashboard cache clearing.
+
+**Location:** `includes/analyzers/class-seo-dashboard.php:24`
+
+```php
+add_action( 'save_post', array( $this, 'clear_cache' ) );
+```
+
+**Example - Clear custom caches:**
+
+```php
+add_action( 'save_post', function( $post_id ) {
+    // Clear your plugin's cache when GEO AI clears its cache
+    if ( metadata_exists( 'post', $post_id, '_geoai_keyword_score' ) ) {
+        delete_transient( 'my_plugin_seo_cache_' . $post_id );
+    }
+});
+```
+
+---
+
+#### `delete_post`
+
+Dashboard cache clearing on post deletion.
+
+**Location:** `includes/analyzers/class-seo-dashboard.php:25`
+
+```php
+add_action( 'delete_post', array( $this, 'clear_cache' ) );
+```
+
+---
+
+#### `wp_head`
+
+Meta tag and schema output suppression.
+
+**Location:** `includes/class-geoai-compat.php:60`
+
+```php
+add_action( 'wp_head', array( $this, 'maybe_suppress_outputs' ), 999 );
+```
+
+**Example - Add custom meta tags:**
+
+```php
+add_action( 'wp_head', function() {
+    if ( is_singular( 'post' ) ) {
+        $score = get_post_meta( get_the_ID(), '_geoai_keyword_score', true );
+        if ( $score >= 80 ) {
+            echo '<meta name="content-quality" content="high" />';
+        }
+    }
+}, 1 ); // Priority 1 to output before GEO AI
+```
+
+---
+
+## Custom Hooks (Planned)
+
+<Note>
+  These hooks are planned for future versions. Vote for your favorites on [GitHub Discussions](https://github.com/geoai/geo-ai/discussions).
+</Note>
+
+### `geoai_before_analyze`
+
+Fires before running content analysis.
+
+```php
+do_action( 'geoai_before_analyze', int $post_id, array $data );
+```
+
+**Example:**
+```php
+add_action( 'geoai_before_analyze', function( $post_id, $data ) {
+    error_log( sprintf( 'Analyzing post #%d', $post_id ) );
+    // Update last analyzed timestamp
+    update_post_meta( $post_id, '_last_analyzed', time() );
+});
+```
+
+---
+
+### `geoai_after_analyze`
+
+Fires after analysis completes.
+
+```php
+do_action( 'geoai_after_analyze', int $post_id, array $results );
+```
+
+**Example:**
+```php
+add_action( 'geoai_after_analyze', function( $post_id, $results ) {
+    // Send notification if score drops below threshold
+    if ( $results['scores']['total'] < 60 ) {
+        wp_mail( 
+            'editor@example.com',
+            sprintf( 'Low SEO score on post #%d', $post_id ),
+            sprintf( 'Score: %d/100', $results['scores']['total'] )
+        );
+    }
+}, 10, 2 );
+```
+
+---
+
+### `geoai_analyzer_result`
+
+Modify individual analyzer results.
+
+```php
+apply_filters( 'geoai_analyzer_result', array $result, string $analyzer_name, array $input );
+```
+
+**Example:**
+```php
+add_filter( 'geoai_analyzer_result', function( $result, $analyzer, $input ) {
+    // Boost readability scores by 5 points
+    if ( 'readability' === $analyzer ) {
+        $result['score'] = min( 100, $result['score'] + 5 );
+    }
+    return $result;
+}, 10, 3 );
+```
+
+---
+
+## Meta Keys
+
+GEO AI stores data in post meta. You can read/modify these values:
+
+<CodeGroup>
+```php Keyword Analysis
+// Focus keyword
+get_post_meta( $post_id, '_geoai_focus_keyword', true );
+
+// Keyword score (0-100)
+get_post_meta( $post_id, '_geoai_keyword_score', true );
+
+// Keyword density (%)
+get_post_meta( $post_id, '_geoai_keyword_density', true );
+```
+
+```php Readability
+// Readability score (0-100)
+get_post_meta( $post_id, '_geoai_readability_score', true );
+
+// Flesch Reading Ease (0-100)
+get_post_meta( $post_id, '_geoai_flesch_score', true );
+```
+
+```php SEO Meta
+// Meta description
+get_post_meta( $post_id, '_geoai_meta_description', true );
+
+// Meta title
+get_post_meta( $post_id, '_geoai_meta_title', true );
+
+// Canonical URL
+get_post_meta( $post_id, '_geoai_canonical', true );
+
+// Robots meta
+get_post_meta( $post_id, '_geoai_robots', true );
+// Returns: array( 'noindex', 'nofollow', 'noarchive', etc. )
+```
+
+```php Social
+// OG title
+get_post_meta( $post_id, '_geoai_og_title', true );
+
+// OG description
+get_post_meta( $post_id, '_geoai_og_description', true );
+
+// OG image ID
+get_post_meta( $post_id, '_geoai_og_image', true );
+
+// Twitter card type
+get_post_meta( $post_id, '_geoai_twitter_card', true );
+```
+</CodeGroup>
+
+---
+
+## Practical Examples
+
+### Add Custom Analyzer
+
+Create a custom analyzer and integrate with GEO AI:
+
+```php
+namespace My_Plugin;
+
+class Custom_Analyzer {
+    public function analyze( $content ) {
+        // Your analysis logic
+        $score = $this->calculate_score( $content );
+        
+        return array(
+            'score'  => $score,
+            'issues' => array(
+                array(
+                    'id'       => 'custom_check',
+                    'severity' => 'warning',
+                    'message'  => 'Custom issue found',
+                ),
+            ),
+        );
+    }
+}
+
+// Hook into GEO AI analysis
+add_action( 'geoai_after_analyze', function( $post_id, $results ) {
+    $analyzer = new Custom_Analyzer();
+    $content = get_post_field( 'post_content', $post_id );
+    $custom_result = $analyzer->analyze( $content );
+    
+    // Save custom score
+    update_post_meta( $post_id, '_custom_analyzer_score', $custom_result['score'] );
+}, 10, 2 );
+```
+
+---
+
+### Conditional Schema Output
+
+Only output schema for high-quality content:
+
+```php
+add_filter( 'geoai_schema_output', function( $schema ) {
+    if ( is_singular( 'post' ) ) {
+        $score = get_post_meta( get_the_ID(), '_geoai_keyword_score', true );
+        
+        // Only output Article schema if score is 70+
+        if ( $score < 70 ) {
+            return array(); // Empty schema
+        }
+    }
+    
+    return $schema;
+});
+```
+
+---
+
+### Auto-Fix Low Scores
+
+Automatically apply fixes when posts fall below threshold:
+
+```php
+add_action( 'save_post', function( $post_id ) {
+    // Skip autosave/revisions
+    if ( wp_is_post_autosave( $post_id ) || wp_is_post_revision( $post_id ) ) {
+        return;
+    }
+    
+    $score = get_post_meta( $post_id, '_geoai_readability_score', true );
+    
+    if ( $score < 60 ) {
+        // Send notification
+        wp_mail(
+            get_option( 'admin_email' ),
+            'Low readability score',
+            sprintf( 'Post #%d has readability score of %d', $post_id, $score )
+        );
+        
+        // Set post status to draft if too low
+        if ( $score < 40 ) {
+            wp_update_post( array(
+                'ID'          => $post_id,
+                'post_status' => 'draft',
+            ));
+        }
+    }
+}, 20 ); // Priority 20 to run after GEO AI saves meta
+```
+
+---
+
+### Track Analysis History
+
+Log score changes over time:
+
+```php
+add_action( 'geoai_after_analyze', function( $post_id, $results ) {
+    $history = get_post_meta( $post_id, '_geoai_score_history', true ) ?: array();
+    
+    $history[] = array(
+        'date'  => current_time( 'mysql' ),
+        'score' => $results['scores']['total'],
+    );
+    
+    // Keep last 10 audits
+    $history = array_slice( $history, -10 );
+    
+    update_post_meta( $post_id, '_geoai_score_history', $history );
+}, 10, 2 );
+```
+
+---
+
+## Hook Reference Table
+
+| Hook | Type | Location | Description |
+|------|------|----------|-------------|
+| `geoai_detected_conflicts` | Filter | `class-geoai-compat.php:52` | Modify detected SEO plugins |
+| `geoai_schema_output` | Filter | `class-geoai-schema.php:51` | Modify schema markup |
+| `geoai_breadcrumb_items` | Filter | `class-geoai-breadcrumbs.php:105` | Modify breadcrumb items |
+| `the_content` | Filter | `class-geoai-analyzer.php:137` | Process content before analysis |
+| `init` | Action | `class-geoai-compat.php:30` | Compatibility initialization |
+| `save_post` | Action | `class-seo-dashboard.php:24` | Clear dashboard cache |
+| `delete_post` | Action | `class-seo-dashboard.php:25` | Clear dashboard cache |
+| `wp_head` | Action | `class-geoai-compat.php:60` | Suppress meta tag output |
+
+---
+
+## Best Practices
+
+<Card title="Hook Development Guidelines" icon="code">
+  1. **Always check context** - Use conditionals to ensure hooks only run when needed
+  2. **Use appropriate priority** - Higher priority (20+) runs later, lower (5-) runs earlier
+  3. **Validate input** - Never trust data passed to hooks
+  4. **Return values** - Filters must return modified value
+  5. **Avoid heavy operations** - Hooks fire frequently; cache expensive operations
+  6. **Document custom hooks** - Help other developers integrate with your code
+</Card>
+
+---
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Analyzers" icon="chart-mixed" href="/advanced/analyzers">
+    Learn what data is available in analyzer results
+  </Card>
+  <Card title="WordPress Plugin Handbook" icon="wordpress" href="https://developer.wordpress.org/plugins/hooks/">
+    Official WordPress hooks documentation
+  </Card>
+  <Card title="Architecture" icon="sitemap" href="/developer-guide/architecture">
+    Understand GEO AI's code structure
+  </Card>
+  <Card title="Contributing" icon="code-pull-request" href="/developer-guide/contributing">
+    Submit your custom hooks to core
+  </Card>
+</CardGroup>

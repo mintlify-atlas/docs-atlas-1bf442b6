@@ -1,0 +1,551 @@
+---
+title: Redirects Manager
+description: 301/302 redirect management with wildcard support and pattern matching
+---
+
+## Overview
+
+The **Redirects Manager** provides a simple interface to create and manage URL redirects without touching server configuration files. Supports 301 permanent and 302 temporary redirects with wildcard pattern matching.
+
+<Info>
+  Proper redirects preserve SEO value when moving or restructuring content, preventing 404 errors and maintaining link equity.
+</Info>
+
+## Features
+
+<CardGroup cols={2}>
+  <Card title="301 & 302 Redirects" icon="arrow-right">
+    Permanent (301) or temporary (302) redirect types
+  </Card>
+  
+  <Card title="Wildcard Support" icon="asterisk">
+    Pattern matching with `*` for flexible redirects
+  </Card>
+  
+  <Card title="Simple Management" icon="table">
+    Add, edit, and remove redirects from WordPress admin
+  </Card>
+  
+  <Card title="Fast Execution" icon="bolt">
+    Runs early in WordPress loading for minimal overhead
+  </Card>
+</CardGroup>
+
+## Redirect Types
+
+<AccordionGroup>
+  <Accordion title="301 Permanent Redirect">
+    **Use when:** Content has permanently moved to a new URL
+    
+    **SEO Impact:**
+    - Passes 90-99% of link equity to new URL
+    - Tells search engines to update their index
+    - Should be used for permanent changes
+    
+    **Examples:**
+    - Site restructure: `/old-section/*` → `/new-section/`
+    - Page rename: `/contact-us` → `/contact`
+    - Domain change: All pages to new domain
+  </Accordion>
+  
+  <Accordion title="302 Temporary Redirect">
+    **Use when:** Content is temporarily at a different URL
+    
+    **SEO Impact:**
+    - Does NOT pass link equity
+    - Tells search engines the change is temporary
+    - Original URL stays in index
+    
+    **Examples:**
+    - A/B testing different landing pages
+    - Seasonal promotions
+    - Maintenance pages
+    - Limited-time campaigns
+  </Accordion>
+</AccordionGroup>
+
+## Configuration
+
+<Steps>
+  <Step title="Access Redirect Settings">
+    Navigate to **Settings → GEO AI → Redirects & 404**
+  </Step>
+  
+  <Step title="Add New Redirect">
+    Click **"Add Redirect"** button
+  </Step>
+  
+  <Step title="Enter URLs">
+    - **From URL:** `/old-page` (relative path)
+    - **To URL:** `/new-page` or `https://external.com/page`
+  </Step>
+  
+  <Step title="Select Type">
+    Choose **301 Permanent** or **302 Temporary**
+  </Step>
+  
+  <Step title="Save Changes">
+    Click **"Save Changes"** to activate redirects
+  </Step>
+</Steps>
+
+## Implementation Details
+
+### Redirects Class
+
+```php title="includes/class-geoai-redirects.php" showLineNumbers
+class GeoAI_Redirects {
+    private static $instance = null;
+
+    public static function get_instance() {
+        if ( null === self::$instance ) {
+            self::$instance = new self();
+        }
+        return self::$instance;
+    }
+
+    private function __construct() {
+        add_action( 'template_redirect', array( $this, 'maybe_redirect' ), 1 );
+    }
+
+    public function maybe_redirect() {
+        if ( is_admin() ) {
+            return;
+        }
+
+        $redirects    = get_option( 'geoai_redirects', array() );
+        $request_path = $_SERVER['REQUEST_URI'];
+
+        foreach ( $redirects as $redirect ) {
+            if ( empty( $redirect['from'] ) || empty( $redirect['to'] ) ) {
+                continue;
+            }
+
+            $from = $redirect['from'];
+            $to   = $redirect['to'];
+            $type = $redirect['type'] ?? 301;
+
+            if ( $this->matches( $request_path, $from ) ) {
+                wp_redirect( $to, $type );
+                exit;
+            }
+        }
+    }
+}
+```
+
+### Pattern Matching
+
+```php title="includes/class-geoai-redirects.php" showLineNumbers startLineNumber="55"
+private function matches( $request, $pattern ) {
+    $pattern = str_replace( '*', '(.*)', $pattern );
+    $pattern = '#^' . $pattern . '$#';
+    
+    return (bool) preg_match( $pattern, $request );
+}
+```
+
+## Wildcard Patterns
+
+Use `*` to match any characters:
+
+<CodeGroup>
+
+```text Match All in Directory
+From: /blog/*
+To:   /articles/
+
+Matches:
+✓ /blog/post-1
+✓ /blog/post-2  
+✓ /blog/category/tech
+```
+
+```text Match File Extensions
+From: *.php
+To:   /
+
+Matches:
+✓ /old-page.php
+✓ /contact.php
+✗ /page (no .php)
+```
+
+```text Match Middle Pattern
+From: /docs/*/download
+To:   /downloads/
+
+Matches:
+✓ /docs/pdf/download
+✓ /docs/2024/download
+✗ /docs/download (missing middle)
+```
+
+```text Match Query Strings
+From: /page*
+To:   /new-page
+
+Matches:
+✓ /page
+✓ /page?id=123
+✓ /page?utm_source=google
+```
+
+</CodeGroup>
+
+## Redirect Examples
+
+### Single Page Redirect
+
+| From URL | To URL | Type | Use Case |
+|----------|---------|------|----------|
+| `/old-contact` | `/contact` | 301 | Page renamed |
+| `/about-us` | `/about` | 301 | URL simplified |
+| `/sale` | `/black-friday` | 302 | Temporary promo |
+
+### Bulk Directory Redirects
+
+| From URL | To URL | Type | Use Case |
+|----------|---------|------|----------|
+| `/blog/*` | `/articles/` | 301 | Section renamed |
+| `/products/*` | `https://shop.example.com/` | 301 | Moved to subdomain |
+| `/old-site/*` | `/` | 301 | Site restructure |
+
+### Protocol Redirects
+
+<Note>
+  For HTTPS redirects, use server-level redirects (htaccess, nginx config) for better performance.
+</Note>
+
+### External Redirects
+
+| From URL | To URL | Type | Use Case |
+|----------|---------|------|----------|
+| `/facebook` | `https://facebook.com/yourpage` | 301 | Social shortlink |
+| `/youtube` | `https://youtube.com/c/yourchannel` | 301 | Channel shortlink |
+| `/docs` | `https://docs.example.com` | 301 | External docs site |
+
+## Admin Interface
+
+The redirects table allows inline editing:
+
+```php title="includes/class-geoai-admin.php" showLineNumbers startLineNumber="840"
+private function render_redirects_tab() {
+    $redirects = get_option( 'geoai_redirects', array() );
+    ?>
+    <h2><?php esc_html_e( '301/302 Redirects', 'geo-ai' ); ?></h2>
+    <table class="widefat geoai-redirects-table">
+        <thead>
+            <tr>
+                <th><?php esc_html_e( 'From URL', 'geo-ai' ); ?></th>
+                <th><?php esc_html_e( 'To URL', 'geo-ai' ); ?></th>
+                <th><?php esc_html_e( 'Type', 'geo-ai' ); ?></th>
+                <th><?php esc_html_e( 'Actions', 'geo-ai' ); ?></th>
+            </tr>
+        </thead>
+        <tbody id="geoai-redirects-tbody">
+            <?php
+            if ( ! empty( $redirects ) ) {
+                foreach ( $redirects as $index => $redirect ) {
+                    ?>
+                    <tr>
+                        <td>
+                            <input type="text" 
+                                   name="geoai_redirects[<?php echo esc_attr( $index ); ?>][from]" 
+                                   value="<?php echo esc_attr( $redirect['from'] ?? '' ); ?>" 
+                                   class="regular-text" 
+                                   placeholder="/old-page" />
+                        </td>
+                        <td>
+                            <input type="text" 
+                                   name="geoai_redirects[<?php echo esc_attr( $index ); ?>][to]" 
+                                   value="<?php echo esc_attr( $redirect['to'] ?? '' ); ?>" 
+                                   class="regular-text" 
+                                   placeholder="/new-page" />
+                        </td>
+                        <td>
+                            <select name="geoai_redirects[<?php echo esc_attr( $index ); ?>][type]">
+                                <option value="301" <?php selected( $redirect['type'] ?? 301, 301 ); ?>>
+                                    301 Permanent
+                                </option>
+                                <option value="302" <?php selected( $redirect['type'] ?? 301, 302 ); ?>>
+                                    302 Temporary
+                                </option>
+                            </select>
+                        </td>
+                        <td>
+                            <button type="button" class="button geoai-remove-redirect">
+                                <?php esc_html_e( 'Remove', 'geo-ai' ); ?>
+                            </button>
+                        </td>
+                    </tr>
+                    <?php
+                }
+            }
+            ?>
+        </tbody>
+    </table>
+    <p>
+        <button type="button" id="geoai-add-redirect" class="button">
+            <?php esc_html_e( 'Add Redirect', 'geo-ai' ); ?>
+        </button>
+    </p>
+    <p class="description">
+        <?php esc_html_e( 'Use * as wildcard. Example: /blog/* redirects all /blog/ pages.', 'geo-ai' ); ?>
+    </p>
+    <?php
+}
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Use 301 for Permanent Changes" icon="link">
+    Always use 301 redirects when content has permanently moved. This passes SEO value.
+  </Card>
+  
+  <Card title="Avoid Redirect Chains" icon="chain-broken">
+    Don't redirect A → B → C. Always redirect directly to the final destination.
+  </Card>
+  
+  <Card title="Test After Creation" icon="vial">
+    Visit the old URL to verify the redirect works and points to the correct destination.
+  </Card>
+  
+  <Card title="Update Internal Links" icon="pen">
+    Update links in your content rather than relying on redirects indefinitely.
+  </Card>
+  
+  <Card title="Monitor 404 Errors" icon="chart-line">
+    Use the 404 Monitor to identify pages that need redirects.
+  </Card>
+  
+  <Card title="Document Major Redirects" icon="file-lines">
+    Keep a record of important redirects, especially during site migrations.
+  </Card>
+</CardGroup>
+
+## Redirect Chains
+
+<Warning>
+  Avoid redirect chains. Each additional redirect adds ~200-500ms latency and dilutes SEO value.
+</Warning>
+
+**Bad:**
+```text
+/old-page → /renamed-page → /final-page
+```
+
+**Good:**
+```text
+/old-page → /final-page
+/renamed-page → /final-page
+```
+
+## Performance Considerations
+
+<CardGroup cols={2}>
+  <Card title="Early Execution" icon="bolt">
+    Redirects run at priority 1 on `template_redirect`, before most WordPress processing.
+  </Card>
+  
+  <Card title="Minimal Overhead" icon="gauge">
+    Simple array lookup and regex matching. Typically less than 1ms per request.
+  </Card>
+  
+  <Card title="No Database Queries" icon="database">
+    Redirects stored in options cache, no additional DB hits.
+  </Card>
+  
+  <Card title="Exit Early" icon="door-open">
+    PHP execution stops immediately after redirect, saving resources.
+  </Card>
+</CardGroup>
+
+### Server-Level Alternatives
+
+For very high-traffic sites, consider server-level redirects:
+
+<Tabs>
+  <Tab title="Apache (.htaccess)">
+    ```apache title=".htaccess"
+    # Single redirect
+    Redirect 301 /old-page /new-page
+    
+    # Directory redirect
+    RedirectMatch 301 ^/blog/(.*) /articles/$1
+    
+    # External redirect  
+    Redirect 301 /docs https://docs.example.com
+    ```
+  </Tab>
+  
+  <Tab title="Nginx">
+    ```nginx title="nginx.conf"
+    # Single redirect
+    location /old-page {
+        return 301 /new-page;
+    }
+    
+    # Pattern redirect
+    location ~ ^/blog/(.*) {
+        return 301 /articles/$1;
+    }
+    
+    # External redirect
+    location /docs {
+        return 301 https://docs.example.com;
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Migration Workflow
+
+When migrating or restructuring a site:
+
+<Steps>
+  <Step title="Audit Current URLs">
+    Export a list of all current page URLs and their traffic
+  </Step>
+  
+  <Step title="Plan New Structure">
+    Map old URLs to new URLs in a spreadsheet
+  </Step>
+  
+  <Step title="Create Redirects">
+    Add all redirects in GEO AI before making changes
+  </Step>
+  
+  <Step title="Test Redirects">
+    Verify each redirect works correctly
+  </Step>
+  
+  <Step title="Make Changes">
+    Update your site structure/URLs
+  </Step>
+  
+  <Step title="Monitor 404s">
+    Check 404 Monitor for any missed redirects
+  </Step>
+  
+  <Step title="Update Sitemaps">
+    Submit updated sitemap to Google Search Console
+  </Step>
+</Steps>
+
+## Programmatic Management
+
+Manage redirects via code:
+
+```php
+// Get current redirects
+$redirects = get_option( 'geoai_redirects', array() );
+
+// Add new redirect
+$redirects[] = array(
+    'from' => '/old-page',
+    'to'   => '/new-page',
+    'type' => 301,
+);
+
+// Save
+update_option( 'geoai_redirects', $redirects );
+```
+
+### Bulk Import
+
+```php
+// Import from CSV
+$csv_data = array(
+    array( '/old-1', '/new-1', 301 ),
+    array( '/old-2', '/new-2', 301 ),
+    array( '/promo', '/sale', 302 ),
+);
+
+$redirects = array();
+foreach ( $csv_data as $row ) {
+    $redirects[] = array(
+        'from' => $row[0],
+        'to'   => $row[1],
+        'type' => $row[2],
+    );
+}
+
+update_option( 'geoai_redirects', $redirects );
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Redirect not working">
+    **Check:**
+    - From URL matches exactly (case-sensitive)
+    - Include leading slash: `/page` not `page`
+    - Redirect is saved (click Save Changes)
+    - Clear browser cache
+    - Test in incognito mode
+  </Accordion>
+  
+  <Accordion title="Redirect loop">
+    **Cause:** Circular redirect (A → B → A)
+    
+    **Solution:**
+    - Check both GEO AI and other redirect sources
+    - Verify destination URL is correct
+    - Remove conflicting redirects
+  </Accordion>
+  
+  <Accordion title="Wildcard not matching">
+    **Common issues:**
+    - Pattern must match full path: `/blog/*` not `blog/*`
+    - Use `*` not `%` or other wildcards
+    - Test pattern with specific examples
+  </Accordion>
+  
+  <Accordion title="Too many redirects error">
+    **Cause:** Redirect chain or loop
+    
+    **Solution:**
+    - Remove intermediate redirects
+    - Redirect directly to final destination
+    - Check server-level redirects (htaccess, nginx)
+  </Accordion>
+</AccordionGroup>
+
+## SEO Impact
+
+### Link Equity Transfer
+
+| Redirect Type | Link Equity Passed | Indexing Behavior |
+|---------------|-------------------|-------------------|
+| 301 Permanent | ~90-99% | New URL indexed, old URL removed |
+| 302 Temporary | 0% (minimal) | Old URL stays indexed |
+| 307 Temporary | 0% (minimal) | Old URL stays indexed |
+
+<Tip>
+  Google treats 301, 302, and 307 similarly now, but 301 is still best practice for permanent moves.
+</Tip>
+
+### Time to Re-index
+
+After creating 301 redirects:
+- Google discovers redirect: 1-7 days
+- Link equity transfers: 2-4 weeks
+- Old URL drops from index: 4-8 weeks
+
+## Related Features
+
+<CardGroup cols={3}>
+  <Card title="404 Monitor" icon="triangle-exclamation" href="./404-monitor">
+    Track broken links needing redirects
+  </Card>
+  
+  <Card title="Sitemaps" icon="sitemap" href="./sitemaps">
+    Update sitemaps after redirects
+  </Card>
+  
+  <Card title="Meta Tags" icon="heading" href="./meta-titles">
+    Canonical URLs for duplicate content
+  </Card>
+</CardGroup>

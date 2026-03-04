@@ -1,0 +1,377 @@
+---
+title: 'GeoAI_Analyzer'
+description: 'AI-powered content analyzer using Google Gemini API for SEO audits and meta generation'
+---
+
+## Overview
+
+The `GeoAI_Analyzer` class provides AI-powered content analysis using the Google Gemini API. It analyzes posts for SEO optimization, generates meta content, and tests API connectivity. This class uses the singleton pattern and includes the `Encryption` trait.
+
+**Namespace:** `GeoAI\Core`
+
+**Location:** `includes/class-geoai-analyzer.php`
+
+## Key Features
+
+- AI-powered SEO content auditing
+- Automatic analysis on post publish
+- Meta title and description generation
+- Answer engine optimization (Google AI Overviews, Perplexity, ChatGPT)
+- API connection testing
+- Background processing support via Action Scheduler
+
+## Public Methods
+
+### get_instance()
+
+Returns the singleton instance of the analyzer class.
+
+```php
+public static function get_instance()
+```
+
+**Returns:** `GeoAI_Analyzer` - The singleton instance
+
+**Example:**
+```php
+$analyzer = \GeoAI\Core\GeoAI_Analyzer::get_instance();
+```
+
+### analyze_post()
+
+Analyzes a post using Google Gemini AI and returns comprehensive SEO audit data.
+
+```php
+public function analyze_post( $post_id )
+```
+
+<ParamField path="post_id" type="int" required>
+  The ID of the post to analyze
+</ParamField>
+
+**Returns:** `array|WP_Error` - Audit results or error object
+
+**Response Structure:**
+```json
+{
+  "scores": {
+    "answerability": 85,
+    "structure": 90,
+    "trust": 75,
+    "technical": 88,
+    "total": 84
+  },
+  "issues": [
+    {
+      "id": "unique_id",
+      "severity": "high",
+      "msg": "Issue description",
+      "quickFix": "fix_id"
+    }
+  ],
+  "schema": {
+    "article": true,
+    "faq": false,
+    "howto": false,
+    "errors": []
+  },
+  "suggestions": {
+    "titleOptions": ["Option 1", "Option 2"],
+    "entities": ["Entity 1", "Entity 2"],
+    "citations": ["https://example.com"]
+  },
+  "runAt": "2026-03-04T10:30:00+00:00"
+}
+```
+
+**Example:**
+```php
+$result = $analyzer->analyze_post( 123 );
+
+if ( is_wp_error( $result ) ) {
+    echo 'Error: ' . $result->get_error_message();
+} else {
+    echo 'Total Score: ' . $result['scores']['total'];
+    echo 'Issues Found: ' . count( $result['issues'] );
+}
+```
+
+### maybe_auto_analyze()
+
+Automatically analyzes post on save if auto-run is enabled.
+
+```php
+public function maybe_auto_analyze( $post_id, $post )
+```
+
+<ParamField path="post_id" type="int" required>
+  The post ID being saved
+</ParamField>
+
+<ParamField path="post" type="WP_Post" required>
+  The post object being saved
+</ParamField>
+
+**Hooks:** `save_post` (priority 20)
+
+**Behavior:**
+- Only runs on published posts
+- Skips revisions and autosaves
+- Checks if auto-run is enabled in settings
+- Uses Action Scheduler if available for background processing
+
+### handle_background_audit()
+
+Handles scheduled background audit tasks.
+
+```php
+public function handle_background_audit( $post_id )
+```
+
+<ParamField path="post_id" type="mixed" required>
+  Post ID (can be int or array from scheduler)
+</ParamField>
+
+**Hooks:** `geoai_background_audit`
+
+**Example:**
+```php
+// Queue background audit
+if ( function_exists( 'as_enqueue_async_action' ) ) {
+    as_enqueue_async_action( 'geoai_background_audit', array( 'post_id' => 123 ) );
+}
+```
+
+### generate_meta_content()
+
+Generates AI-powered meta title and description for a post.
+
+```php
+public function generate_meta_content( $post_id )
+```
+
+<ParamField path="post_id" type="int" required>
+  The post ID to generate meta content for
+</ParamField>
+
+**Returns:** `array|WP_Error` - Array with 'title' and 'description' keys, or error
+
+**Response:**
+```json
+{
+  "title": "Optimized Meta Title (50-60 chars)",
+  "description": "Compelling meta description with call-to-action (150-160 chars)"
+}
+```
+
+**Example:**
+```php
+$meta = $analyzer->generate_meta_content( 123 );
+
+if ( ! is_wp_error( $meta ) ) {
+    update_post_meta( 123, '_geoai_title', $meta['title'] );
+    update_post_meta( 123, '_geoai_meta_desc', $meta['description'] );
+}
+```
+
+### test_api_connection()
+
+Tests the Google Gemini API connection.
+
+```php
+public function test_api_connection( $override_key = null )
+```
+
+<ParamField path="override_key" type="string">
+  Optional API key to test (defaults to saved key)
+</ParamField>
+
+**Returns:** `array|WP_Error` - Success message or error
+
+**Example:**
+```php
+$result = $analyzer->test_api_connection();
+
+if ( is_wp_error( $result ) ) {
+    echo 'Connection failed: ' . $result->get_error_message();
+} else {
+    echo 'Success: ' . $result['message'];
+}
+```
+
+## Audit Metrics
+
+### Score Components
+
+<ParamField path="answerability" type="int">
+  Score 0-100 measuring how well content answers user queries
+</ParamField>
+
+<ParamField path="structure" type="int">
+  Score 0-100 measuring content organization and formatting
+</ParamField>
+
+<ParamField path="trust" type="int">
+  Score 0-100 measuring authority and credibility signals
+</ParamField>
+
+<ParamField path="technical" type="int">
+  Score 0-100 measuring technical SEO implementation
+</ParamField>
+
+<ParamField path="total" type="int">
+  Overall score 0-100 (weighted average of components)
+</ParamField>
+
+### Issue Severity Levels
+
+- **high** - Critical issues that significantly impact SEO
+- **med** - Medium priority issues that should be addressed
+- **low** - Minor suggestions for improvement
+
+## API Configuration
+
+### Gemini API Endpoint
+
+The analyzer uses the Gemini 1.5 Flash model:
+
+```
+https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent
+```
+
+### Generation Settings
+
+**For Audits:**
+- Temperature: 0.3 (more deterministic)
+- Top K: 40
+- Top P: 0.95
+- Max Tokens: 2048
+- Response Format: JSON
+
+**For Meta Generation:**
+- Temperature: 0.7 (more creative)
+- Top K: 40
+- Top P: 0.95
+- Max Tokens: 512
+- Response Format: JSON
+
+## Storage and Caching
+
+### Post Meta Keys
+
+<ParamField path="_geoai_audit" type="string">
+  JSON-encoded audit results from last analysis
+</ParamField>
+
+<ParamField path="_geoai_audit_timestamp" type="string">
+  MySQL timestamp of last audit run
+</ParamField>
+
+### Retrieving Cached Audits
+
+```php
+$audit_json = get_post_meta( $post_id, '_geoai_audit', true );
+$audit = json_decode( $audit_json, true );
+
+$timestamp = get_post_meta( $post_id, '_geoai_audit_timestamp', true );
+echo 'Last audited: ' . $timestamp;
+```
+
+## Error Handling
+
+### Common Error Codes
+
+<ParamField path="invalid_post" type="WP_Error">
+  Post not found or invalid post ID
+</ParamField>
+
+<ParamField path="no_api_key" type="WP_Error">
+  Google Gemini API key not configured in settings
+</ParamField>
+
+<ParamField path="api_error" type="WP_Error">
+  API request failed or returned non-200 status code
+</ParamField>
+
+<ParamField path="parse_error" type="WP_Error">
+  Failed to parse JSON response from Gemini API
+</ParamField>
+
+<ParamField path="invalid_data" type="WP_Error">
+  API response missing required fields
+</ParamField>
+
+## Usage Examples
+
+### Manual Post Analysis
+
+```php
+$analyzer = \GeoAI\Core\GeoAI_Analyzer::get_instance();
+$result = $analyzer->analyze_post( 123 );
+
+if ( ! is_wp_error( $result ) ) {
+    // Display scores
+    foreach ( $result['scores'] as $metric => $score ) {
+        echo ucfirst( $metric ) . ': ' . $score . '/100 <br>';
+    }
+    
+    // Display issues
+    foreach ( $result['issues'] as $issue ) {
+        echo '[' . strtoupper( $issue['severity'] ) . '] ' . $issue['msg'] . '<br>';
+    }
+}
+```
+
+### Generate and Save Meta Content
+
+```php
+$analyzer = \GeoAI\Core\GeoAI_Analyzer::get_instance();
+$meta = $analyzer->generate_meta_content( 123 );
+
+if ( ! is_wp_error( $meta ) ) {
+    update_post_meta( 123, '_geoai_title', $meta['title'] );
+    update_post_meta( 123, '_geoai_meta_desc', $meta['description'] );
+    
+    echo 'Meta content generated and saved!';
+}
+```
+
+### Test API Before Saving Key
+
+```php
+$test_key = 'AIza...';
+$analyzer = \GeoAI\Core\GeoAI_Analyzer::get_instance();
+$result = $analyzer->test_api_connection( $test_key );
+
+if ( ! is_wp_error( $result ) ) {
+    update_option( 'geoai_api_key', $test_key );
+    echo 'API key validated and saved!';
+} else {
+    echo 'Invalid API key: ' . $result->get_error_message();
+}
+```
+
+## Optimization Tips
+
+### Content Length Limits
+
+- Audit content: First 20,000 characters
+- Meta generation: First 5,000 characters
+
+Large posts are automatically truncated to stay within API limits and reduce costs.
+
+### Background Processing
+
+For better performance, install Action Scheduler:
+
+```bash
+composer require woocommerce/action-scheduler
+```
+
+The analyzer will automatically use it for background processing.
+
+## Related Classes
+
+- [GeoAI_Admin](/api/admin) - Admin interface and settings
+- [GeoAI_Meta](/api/meta) - Meta tag output
+- [GeoAI_REST_API](/api/rest) - REST API endpoints

@@ -1,0 +1,565 @@
+---
+title: Breadcrumbs
+description: SEO-friendly breadcrumb navigation with BreadcrumbList schema markup
+---
+
+## Overview
+
+**Breadcrumbs** provide hierarchical navigation that helps users understand their location within your site structure. GEO AI's breadcrumbs include automatic **BreadcrumbList schema** for enhanced search visibility.
+
+<Info>
+  Breadcrumbs with schema markup can appear in Google search results, improving CTR by 15-20%.
+</Info>
+
+## Features
+
+<CardGroup cols={2}>
+  <Card title="Automatic Schema" icon="code">
+    BreadcrumbList JSON-LD markup included automatically
+  </Card>
+  
+  <Card title="Multiple Output Methods" icon="wand-magic">
+    Shortcode, PHP function, or Gutenberg block (planned)
+  </Card>
+  
+  <Card title="Customizable Separators" icon="slash">
+    Choose your preferred separator character
+  </Card>
+  
+  <Card title="Hierarchical Support" icon="sitemap">
+    Handles parent pages and nested structures
+  </Card>
+</CardGroup>
+
+## Usage Methods
+
+<Tabs>
+  <Tab title="Shortcode">
+    Add breadcrumbs to any post or page:
+    
+    ```text
+    [geoai_breadcrumbs]
+    ```
+    
+    With custom separator:
+    
+    ```text
+    [geoai_breadcrumbs separator=">"]
+    ```
+    
+    With custom home text:
+    
+    ```text
+    [geoai_breadcrumbs home_text="Homepage"]
+    ```
+    
+    <Tip>
+      Shortcodes work in any WordPress content editor including classic and block editors.
+    </Tip>
+  </Tab>
+  
+  <Tab title="PHP Function">
+    Add to theme templates:
+    
+    ```php title="single.php"
+    <?php
+    if ( function_exists( 'geoai_breadcrumbs' ) ) {
+        $breadcrumbs = \GeoAI\Core\GeoAI_Breadcrumbs::get_instance();
+        echo $breadcrumbs->render_breadcrumbs();
+    }
+    ?>
+    ```
+    
+    With custom attributes:
+    
+    ```php
+    echo $breadcrumbs->render_breadcrumbs([
+        'separator' => '»',
+        'home_text' => 'Home Page',
+    ]);
+    ```
+  </Tab>
+  
+  <Tab title="Template Code">
+    Add before post content in your theme:
+    
+    ```php title="functions.php"
+    add_action( 'genesis_before_loop', 'add_breadcrumbs' );
+    
+    function add_breadcrumbs() {
+        if ( is_singular() ) {
+            echo do_shortcode( '[geoai_breadcrumbs]' );
+        }
+    }
+    ```
+    
+    For other themes, use appropriate hooks like:
+    - `twentytwentyfour_before_content`
+    - `astra_entry_before`  
+    - `kadence_single_before_inner_content`
+  </Tab>
+</Tabs>
+
+## Implementation Details
+
+### Breadcrumbs Class
+
+```php title="includes/class-geoai-breadcrumbs.php" showLineNumbers
+class GeoAI_Breadcrumbs {
+    private static $instance = null;
+
+    public static function get_instance() {
+        if ( null === self::$instance ) {
+            self::$instance = new self();
+        }
+        return self::$instance;
+    }
+
+    private function __construct() {
+        add_shortcode( 'geoai_breadcrumbs', array( $this, 'render_breadcrumbs' ) );
+    }
+}
+```
+
+### Render Function
+
+```php title="includes/class-geoai-breadcrumbs.php" showLineNumbers startLineNumber="31"
+public function render_breadcrumbs( $atts = array() ) {
+    $atts = shortcode_atts(
+        array(
+            'separator' => '/',
+            'home_text' => __( 'Home', 'geo-ai' ),
+        ),
+        $atts
+    );
+
+    $items = $this->get_breadcrumb_items();
+    
+    if ( empty( $items ) ) {
+        return '';
+    }
+
+    $html   = '<nav class="geoai-breadcrumbs" aria-label="' . esc_attr__( 'Breadcrumb', 'geo-ai' ) . '">';
+    $html  .= '<ol itemscope itemtype="https://schema.org/BreadcrumbList">';
+    $position = 1;
+
+    foreach ( $items as $item ) {
+        $html .= '<li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem">';
+        
+        if ( ! empty( $item['url'] ) ) {
+            $html .= sprintf(
+                '<a href="%s" itemprop="item"><span itemprop="name">%s</span></a>',
+                esc_url( $item['url'] ),
+                esc_html( $item['title'] )
+            );
+        } else {
+            $html .= '<span itemprop="name">' . esc_html( $item['title'] ) . '</span>';
+        }
+        
+        $html .= '<meta itemprop="position" content="' . esc_attr( $position ) . '" />';
+        $html .= '</li>';
+
+        if ( $position < count( $items ) ) {
+            $html .= '<li class="separator">' . esc_html( $atts['separator'] ) . '</li>';
+        }
+
+        $position++;
+    }
+
+    $html .= '</ol></nav>';
+    
+    return $html;
+}
+```
+
+### Building Breadcrumb Trail
+
+```php title="includes/class-geoai-breadcrumbs.php" showLineNumbers startLineNumber="78"
+private function get_breadcrumb_items() {
+    $items = array();
+
+    // Always start with home
+    $items[] = array(
+        'title' => __( 'Home', 'geo-ai' ),
+        'url'   => home_url( '/' ),
+    );
+
+    if ( is_singular() ) {
+        $post = get_post();
+        
+        // Add parent pages
+        if ( $post->post_parent ) {
+            $ancestors = array_reverse( get_post_ancestors( $post ) );
+            foreach ( $ancestors as $ancestor_id ) {
+                $items[] = array(
+                    'title' => get_the_title( $ancestor_id ),
+                    'url'   => get_permalink( $ancestor_id ),
+                );
+            }
+        }
+
+        // Add current page (no link)
+        $items[] = array(
+            'title' => get_the_title(),
+            'url'   => '',
+        );
+    }
+
+    return apply_filters( 'geoai_breadcrumb_items', $items );
+}
+```
+
+## HTML Output
+
+### Basic Example
+
+```html
+<nav class="geoai-breadcrumbs" aria-label="Breadcrumb">
+  <ol itemscope itemtype="https://schema.org/BreadcrumbList">
+    <li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem">
+      <a href="https://example.com/" itemprop="item">
+        <span itemprop="name">Home</span>
+      </a>
+      <meta itemprop="position" content="1" />
+    </li>
+    <li class="separator">/</li>
+    <li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem">
+      <a href="https://example.com/blog/" itemprop="item">
+        <span itemprop="name">Blog</span>
+      </a>
+      <meta itemprop="position" content="2" />
+    </li>
+    <li class="separator">/</li>
+    <li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem">
+      <span itemprop="name">WordPress Performance Tips</span>
+      <meta itemprop="position" content="3" />
+    </li>
+  </ol>
+</nav>
+```
+
+### With Parent Pages
+
+```html
+<!-- For a page with hierarchy: Home > About > Our Team > John Doe -->
+<nav class="geoai-breadcrumbs" aria-label="Breadcrumb">
+  <ol itemscope itemtype="https://schema.org/BreadcrumbList">
+    <li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem">
+      <a href="https://example.com/" itemprop="item">
+        <span itemprop="name">Home</span>
+      </a>
+      <meta itemprop="position" content="1" />
+    </li>
+    <li class="separator">/</li>
+    <li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem">
+      <a href="https://example.com/about/" itemprop="item">
+        <span itemprop="name">About</span>
+      </a>
+      <meta itemprop="position" content="2" />
+    </li>
+    <li class="separator">/</li>
+    <li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem">
+      <a href="https://example.com/about/our-team/" itemprop="item">
+        <span itemprop="name">Our Team</span>
+      </a>
+      <meta itemprop="position" content="3" />
+    </li>
+    <li class="separator">/</li>
+    <li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem">
+      <span itemprop="name">John Doe</span>
+      <meta itemprop="position" content="4" />
+    </li>
+  </ol>
+</nav>
+```
+
+## Schema Markup
+
+Breadcrumbs include microdata for BreadcrumbList schema:
+
+```html
+<ol itemscope itemtype="https://schema.org/BreadcrumbList">
+  <li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem">
+    <a href="..." itemprop="item">
+      <span itemprop="name">Home</span>
+    </a>
+    <meta itemprop="position" content="1" />
+  </li>
+</ol>
+```
+
+This markup:
+- Helps search engines understand site structure
+- Can display in Google search results
+- Improves accessibility for screen readers
+- Provides semantic navigation context
+
+## Styling
+
+Default breadcrumbs have minimal styling. Customize in your theme:
+
+```css title="style.css"
+/* Basic breadcrumb styling */
+.geoai-breadcrumbs {
+  margin: 20px 0;
+  padding: 12px 0;
+  font-size: 0.9em;
+  color: #666;
+}
+
+.geoai-breadcrumbs ol {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.geoai-breadcrumbs li {
+  display: inline;
+}
+
+.geoai-breadcrumbs a {
+  color: #667eea;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.geoai-breadcrumbs a:hover {
+  color: #5568d3;
+  text-decoration: underline;
+}
+
+.geoai-breadcrumbs .separator {
+  color: #999;
+  user-select: none;
+}
+
+/* Current page (no link) */
+.geoai-breadcrumbs li:last-child span {
+  color: #333;
+  font-weight: 500;
+}
+```
+
+### Advanced Styling
+
+```css
+/* Breadcrumbs with background */
+.geoai-breadcrumbs {
+  background: #f8f9fa;
+  border-left: 3px solid #667eea;
+  padding: 12px 16px;
+  border-radius: 4px;
+}
+
+/* Arrow separators */
+.geoai-breadcrumbs .separator::before {
+  content: "\203A"; /* › character */
+  font-size: 1.2em;
+  color: #999;
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+  .geoai-breadcrumbs {
+    font-size: 0.85em;
+    padding: 8px 12px;
+  }
+  
+  .geoai-breadcrumbs ol {
+    gap: 4px;
+  }
+}
+```
+
+## Customization
+
+### Custom Breadcrumb Items
+
+Add custom items or modify the trail:
+
+```php
+add_filter( 'geoai_breadcrumb_items', 'customize_breadcrumbs' );
+
+function customize_breadcrumbs( $items ) {
+    // Add category before current post
+    if ( is_singular( 'post' ) ) {
+        $categories = get_the_category();
+        if ( ! empty( $categories ) ) {
+            // Insert before last item (current page)
+            array_splice( $items, -1, 0, [[
+                'title' => $categories[0]->name,
+                'url'   => get_category_link( $categories[0]->term_id ),
+            ]] );
+        }
+    }
+    
+    return $items;
+}
+```
+
+### Custom Separator
+
+```php
+// Via shortcode
+[geoai_breadcrumbs separator="→"]
+
+// Via PHP
+echo $breadcrumbs->render_breadcrumbs([
+    'separator' => '→',
+]);
+```
+
+Common separator options:
+- `/` (default)
+- `>` or `»` or `›`
+- `→` or `▸`
+- `|` or `-`
+
+## Archive Support
+
+Extend breadcrumbs for archives, categories, and taxonomies:
+
+```php
+add_filter( 'geoai_breadcrumb_items', 'add_archive_breadcrumbs' );
+
+function add_archive_breadcrumbs( $items ) {
+    if ( is_category() ) {
+        $category = get_queried_object();
+        
+        // Add parent categories if hierarchical
+        if ( $category->parent ) {
+            $ancestors = array_reverse( get_ancestors( $category->term_id, 'category' ) );
+            foreach ( $ancestors as $ancestor_id ) {
+                $ancestor = get_category( $ancestor_id );
+                $items[] = [
+                    'title' => $ancestor->name,
+                    'url'   => get_category_link( $ancestor_id ),
+                ];
+            }
+        }
+        
+        // Add current category
+        $items[] = [
+            'title' => $category->name,
+            'url'   => '',
+        ];
+    }
+    
+    return $items;
+}
+```
+
+## Accessibility
+
+Breadcrumbs follow WCAG 2.1 AA accessibility guidelines:
+
+- `<nav>` element with `aria-label="Breadcrumb"`
+- Semantic `<ol>` ordered list structure
+- Current page indicated by absence of link
+- Keyboard navigable links
+- Screen reader friendly schema markup
+
+<Tip>
+  Use descriptive page titles for better accessibility and SEO.
+</Tip>
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Place Above Content" icon="arrow-up">
+    Position breadcrumbs near the top of the page, below the header.
+  </Card>
+  
+  <Card title="Keep Text Concise" icon="text-width">
+    Use short, clear page titles. Avoid long breadcrumb trails on mobile.
+  </Card>
+  
+  <Card title="Don't Link Current Page" icon="link-slash">
+    The current page should not be a clickable link (already implemented).
+  </Card>
+  
+  <Card title="Use Consistent Separators" icon="arrows-left-right">
+    Stick with one separator style across your site.
+  </Card>
+  
+  <Card title="Include Schema" icon="code">
+    Always keep schema markup enabled for SEO benefits (automatic).
+  </Card>
+  
+  <Card title="Test on Mobile" icon="mobile">
+    Ensure breadcrumbs are readable and don't wrap awkwardly on small screens.
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Breadcrumbs not appearing">
+    **Check:**
+    - Shortcode is properly inserted: `[geoai_breadcrumbs]`
+    - You're viewing a singular page (not homepage or archive)
+    - Theme is rendering shortcodes in that location
+  </Accordion>
+  
+  <Accordion title="Parent pages not showing">
+    **Check:**
+    - Page has parent set in Page Attributes
+    - Parent pages are published (not drafts)
+    - Custom filter isn't removing ancestors
+  </Accordion>
+  
+  <Accordion title="Schema not validating">
+    **Solution:**
+    - Test with [Google Rich Results Test](https://search.google.com/test/rich-results)
+    - Ensure no other plugins are outputting conflicting breadcrumb schema
+  </Accordion>
+  
+  <Accordion title="Styling not applying">
+    **Check:**
+    - CSS is in your active theme's stylesheet
+    - Class names match: `.geoai-breadcrumbs`
+    - No theme styles overriding with higher specificity
+    - Clear browser cache
+  </Accordion>
+</AccordionGroup>
+
+## Google Search Appearance
+
+When schema is detected, Google may display breadcrumbs in search results:
+
+```
+Your Site Name › Blog › WordPress Tips
+How to Optimize WordPress Performance
+https://example.com › wordpress-tips
+Learn proven strategies to improve WordPress speed...
+```
+
+This visual hierarchy:
+- Helps users understand page context
+- Improves click-through rates
+- Shows site structure
+- Builds trust
+
+<Note>
+  Google decides whether to show breadcrumbs. Valid schema is required but doesn't guarantee display.
+</Note>
+
+## Related Features
+
+<CardGroup cols={3}>
+  <Card title="Schema Markup" icon="code" href="./schema">
+    JSON-LD structured data
+  </Card>
+  
+  <Card title="Sitemaps" icon="sitemap" href="./sitemaps">
+    XML sitemap generation
+  </Card>
+  
+  <Card title="Meta Titles" icon="heading" href="./meta-titles">
+    Page title optimization
+  </Card>
+</CardGroup>

@@ -1,0 +1,560 @@
+---
+title: XML Sitemaps
+description: Automatic XML sitemap generation for posts, pages, custom post types, and images
+---
+
+## Overview
+
+**XML Sitemaps** help search engines discover and index your content efficiently. GEO AI automatically generates standards-compliant sitemaps with support for images, custom post types, and taxonomies.
+
+<Info>
+  Sitemaps help search engines crawl your site 30-50% more efficiently, especially for large sites.
+</Info>
+
+## Features
+
+<CardGroup cols={2}>
+  <Card title="Sitemap Index" icon="list">
+    Main sitemap.xml that links to individual post type sitemaps
+  </Card>
+  
+  <Card title="Post Type Sitemaps" icon="file">
+    Separate sitemaps for posts, pages, and custom post types
+  </Card>
+  
+  <Card title="Image Sitemaps" icon="image">
+    Includes featured images and inline images in sitemap entries
+  </Card>
+  
+  <Card title="Auto-Update" icon="sync">
+    Updates automatically when content is published or modified
+  </Card>
+</CardGroup>
+
+## Sitemap URLs
+
+Once enabled, your sitemaps are available at:
+
+<CodeGroup>
+
+```text Main Sitemap Index
+https://yoursite.com/sitemap.xml
+```
+
+```text Post Sitemap
+https://yoursite.com/sitemap-post.xml
+```
+
+```text Page Sitemap
+https://yoursite.com/sitemap-page.xml
+```
+
+```text Custom Post Type
+https://yoursite.com/sitemap-{post_type}.xml
+```
+
+</CodeGroup>
+
+## Configuration
+
+<Steps>
+  <Step title="Access Sitemap Settings">
+    Navigate to **Settings → GEO AI → Sitemaps**
+  </Step>
+  
+  <Step title="Enable Sitemaps">
+    Check **"Generate XML sitemaps"** to enable the feature
+  </Step>
+  
+  <Step title="Configure Options">
+    - Enable **"Add image URLs to sitemaps"** for image support
+    - Select post types to include (posts, pages, custom post types)
+  </Step>
+  
+  <Step title="Save & Flush">
+    Click **Save Changes**, then go to **Settings → Permalinks** and click **Save Changes** to flush rewrite rules
+  </Step>
+</Steps>
+
+<Warning>
+  Always flush permalinks after enabling sitemaps, or you'll get 404 errors when accessing sitemap URLs.
+</Warning>
+
+## Implementation Details
+
+### Sitemap Class
+
+```php title="includes/class-geoai-sitemaps.php" showLineNumbers
+class GeoAI_Sitemaps {
+    private static $instance = null;
+
+    public static function get_instance() {
+        if ( null === self::$instance ) {
+            self::$instance = new self();
+        }
+        return self::$instance;
+    }
+
+    private function __construct() {
+        add_action( 'init', array( $this, 'add_rewrite_rules' ) );
+        add_action( 'template_redirect', array( $this, 'serve_sitemap' ) );
+    }
+
+    public function add_rewrite_rules() {
+        add_rewrite_rule( '^sitemap\.xml$', 'index.php?geoai_sitemap=index', 'top' );
+        add_rewrite_rule( '^sitemap-([^/]+)\.xml$', 'index.php?geoai_sitemap=$matches[1]', 'top' );
+        
+        add_rewrite_tag( '%geoai_sitemap%', '([^&]+)' );
+    }
+}
+```
+
+### Sitemap Index Generation
+
+```php title="includes/class-geoai-sitemaps.php" showLineNumbers startLineNumber="66"
+private function generate_sitemap_index() {
+    $xml = '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
+    $xml .= '<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' . "\n";
+
+    $settings = get_option( 'geoai_sitemaps', array() );
+    $post_types = $settings['post_types'] ?? array( 'post', 'page' );
+
+    foreach ( $post_types as $post_type ) {
+        $xml .= sprintf(
+            '<sitemap><loc>%s</loc><lastmod>%s</lastmod></sitemap>' . "\n",
+            esc_url( home_url( "/sitemap-{$post_type}.xml" ) ),
+            esc_xml( current_time( 'c' ) )
+        );
+    }
+
+    $xml .= '</sitemapindex>';
+    
+    return $xml;
+}
+```
+
+### Individual Sitemap Generation
+
+```php title="includes/class-geoai-sitemaps.php" showLineNumbers startLineNumber="86"
+private function generate_sitemap( $type ) {
+    $xml = '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
+    $xml .= '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">' . "\n";
+
+    $posts = get_posts(
+        array(
+            'post_type'      => $type,
+            'post_status'    => 'publish',
+            'posts_per_page' => 1000,
+            'orderby'        => 'modified',
+            'order'          => 'DESC',
+        )
+    );
+
+    foreach ( $posts as $post ) {
+        $xml .= '<url>' . "\n";
+        $xml .= sprintf( '<loc>%s</loc>' . "\n", esc_url( get_permalink( $post ) ) );
+        $xml .= sprintf( '<lastmod>%s</lastmod>' . "\n", esc_xml( get_the_modified_date( 'c', $post ) ) );
+        $xml .= '<changefreq>weekly</changefreq>' . "\n";
+        $xml .= '<priority>0.8</priority>' . "\n";
+
+        $settings = get_option( 'geoai_sitemaps', array() );
+        if ( ! empty( $settings['images'] ) ) {
+            $thumbnail = get_the_post_thumbnail_url( $post, 'full' );
+            if ( $thumbnail ) {
+                $xml .= sprintf( '<image:image><image:loc>%s</image:loc></image:image>' . "\n", esc_url( $thumbnail ) );
+            }
+        }
+
+        $xml .= '</url>' . "\n";
+    }
+
+    $xml .= '</urlset>';
+    
+    return $xml;
+}
+```
+
+### Serving Sitemaps
+
+```php title="includes/class-geoai-sitemaps.php" showLineNumbers startLineNumber="39"
+public function serve_sitemap() {
+    $sitemap = get_query_var( 'geoai_sitemap' );
+    
+    if ( ! $sitemap ) {
+        return;
+    }
+
+    $settings = get_option( 'geoai_sitemaps', array() );
+    
+    if ( empty( $settings['enabled'] ) ) {
+        return;
+    }
+
+    header( 'Content-Type: application/xml; charset=utf-8' );
+    
+    if ( 'index' === $sitemap ) {
+        $output = $this->generate_sitemap_index();
+    } else {
+        $output = $this->generate_sitemap( $sitemap );
+    }
+
+    echo $output;
+    
+    exit;
+}
+```
+
+## Sitemap Structure
+
+### Sitemap Index Example
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <sitemap>
+    <loc>https://example.com/sitemap-post.xml</loc>
+    <lastmod>2025-03-04T15:30:00+00:00</lastmod>
+  </sitemap>
+  <sitemap>
+    <loc>https://example.com/sitemap-page.xml</loc>
+    <lastmod>2025-03-04T15:30:00+00:00</lastmod>
+  </sitemap>
+</sitemapindex>
+```
+
+### Individual Sitemap Example
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" 
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+  <url>
+    <loc>https://example.com/wordpress-performance/</loc>
+    <lastmod>2025-03-04T10:00:00+00:00</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://example.com/wp-content/uploads/featured.jpg</image:loc>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://example.com/seo-guide/</loc>
+    <lastmod>2025-03-03T14:20:00+00:00</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+</urlset>
+```
+
+## Sitemap Elements
+
+<AccordionGroup>
+  <Accordion title="<loc>">
+    **Required.** The full URL of the page.
+    
+    ```xml
+    <loc>https://example.com/my-post/</loc>
+    ```
+  </Accordion>
+  
+  <Accordion title="<lastmod>">
+    **Optional.** Last modification date in ISO 8601 format.
+    
+    ```xml
+    <lastmod>2025-03-04T15:30:00+00:00</lastmod>
+    ```
+    
+    GEO AI uses the post's `post_modified` date.
+  </Accordion>
+  
+  <Accordion title="<changefreq>">
+    **Optional.** How frequently the page likely changes.
+    
+    ```xml
+    <changefreq>weekly</changefreq>
+    ```
+    
+    GEO AI defaults to "weekly" for all pages.
+    
+    **Values:** always, hourly, daily, weekly, monthly, yearly, never
+  </Accordion>
+  
+  <Accordion title="<priority>">
+    **Optional.** Relative priority of this URL (0.0 to 1.0).
+    
+    ```xml
+    <priority>0.8</priority>
+    ```
+    
+    GEO AI defaults to 0.8 for all pages.
+  </Accordion>
+  
+  <Accordion title="<image:image>">
+    **Optional.** Featured image URL for the page.
+    
+    ```xml
+    <image:image>
+      <image:loc>https://example.com/image.jpg</image:loc>
+    </image:image>
+    ```
+    
+    Only included when "Add image URLs" is enabled.
+  </Accordion>
+</AccordionGroup>
+
+## Submitting to Search Engines
+
+<Tabs>
+  <Tab title="Google Search Console">
+    <Steps>
+      <Step title="Open Search Console">
+        Visit [Google Search Console](https://search.google.com/search-console)
+      </Step>
+      
+      <Step title="Select Property">
+        Choose your website property
+      </Step>
+      
+      <Step title="Go to Sitemaps">
+        Click **Sitemaps** in the left sidebar
+      </Step>
+      
+      <Step title="Add Sitemap">
+        Enter `sitemap.xml` and click **Submit**
+      </Step>
+      
+      <Step title="Monitor Status">
+        Check back in 24-48 hours to see discovered URLs
+      </Step>
+    </Steps>
+  </Tab>
+  
+  <Tab title="Bing Webmaster Tools">
+    <Steps>
+      <Step title="Open Webmaster Tools">
+        Visit [Bing Webmaster Tools](https://www.bing.com/webmasters)
+      </Step>
+      
+      <Step title="Select Site">
+        Choose your website
+      </Step>
+      
+      <Step title="Go to Sitemaps">
+        Click **Sitemaps** under Configure My Site
+      </Step>
+      
+      <Step title="Submit Sitemap">
+        Enter your full sitemap URL and click **Submit**
+      </Step>
+    </Steps>
+  </Tab>
+  
+  <Tab title="robots.txt">
+    Add sitemap reference to your `robots.txt` file:
+    
+    ```text title="robots.txt"
+    User-agent: *
+    Allow: /
+    
+    Sitemap: https://yoursite.com/sitemap.xml
+    ```
+    
+    <Note>
+      Search engines automatically check robots.txt for sitemap declarations
+    </Note>
+  </Tab>
+</Tabs>
+
+## Image Sitemaps
+
+When enabled, GEO AI adds image extensions to help search engines discover images:
+
+```xml
+<url>
+  <loc>https://example.com/my-post/</loc>
+  <image:image>
+    <image:loc>https://example.com/wp-content/uploads/featured.jpg</image:loc>
+  </image:image>
+</url>
+```
+
+**Benefits:**
+- Helps images appear in Google Image Search
+- Improves image discoverability
+- Useful for image-heavy sites (portfolios, galleries)
+
+<Tip>
+  Enable image sitemaps if your content relies heavily on visual assets.
+</Tip>
+
+## Sitemap Limits
+
+<CardGroup cols={2}>
+  <Card title="URL Limit" icon="list-ol">
+    **50,000 URLs** per sitemap file
+    
+    GEO AI currently limits to 1,000 posts per sitemap for performance
+  </Card>
+  
+  <Card title="File Size Limit" icon="file">
+    **50 MB** uncompressed
+    
+    Typical WordPress sites rarely approach this limit
+  </Card>
+</CardGroup>
+
+If you exceed 1,000 posts:
+- Consider excluding old/outdated content
+- Use pagination (planned for future update)
+- Split by taxonomy (planned for future update)
+
+## Excluding Content
+
+Exclude specific posts from sitemaps:
+
+```php
+add_filter( 'geoai_sitemap_exclude_post', 'exclude_from_sitemap', 10, 2 );
+
+function exclude_from_sitemap( $exclude, $post ) {
+    // Exclude posts with 'noindex' robots meta
+    $robots = get_post_meta( $post->ID, '_geoai_robots', true );
+    if ( strpos( $robots, 'noindex' ) !== false ) {
+        return true;
+    }
+    
+    // Exclude specific categories
+    if ( has_category( 'uncategorized', $post ) ) {
+        return true;
+    }
+    
+    return $exclude;
+}
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Submit Early" icon="clock">
+    Submit your sitemap to search engines as soon as you launch your site.
+  </Card>
+  
+  <Card title="Monitor Regularly" icon="chart-line">
+    Check Google Search Console monthly for sitemap errors or warnings.
+  </Card>
+  
+  <Card title="Keep It Fresh" icon="rotate">
+    Sitemaps update automatically when content changes. No manual intervention needed.
+  </Card>
+  
+  <Card title="Use Selective Inclusion" icon="filter">
+    Only include post types that should be indexed. Exclude admin pages, drafts, etc.
+  </Card>
+  
+  <Card title="Flush Permalinks" icon="sync">
+    Always flush rewrite rules after enabling/disabling sitemaps.
+  </Card>
+  
+  <Card title="Include in robots.txt" icon="robot">
+    Reference your sitemap in robots.txt for maximum discoverability.
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Sitemap returns 404">
+    **Cause:** Rewrite rules not flushed
+    
+    **Solution:**
+    1. Go to Settings → Permalinks
+    2. Click "Save Changes" (no changes needed)
+    3. Try accessing sitemap.xml again
+  </Accordion>
+  
+  <Accordion title="Sitemap is empty">
+    **Check:**
+    - Sitemaps are enabled in Settings → Sitemaps
+    - You have published posts/pages (not drafts)
+    - The post type is selected in settings
+  </Accordion>
+  
+  <Accordion title="Images not showing">
+    **Check:**
+    - "Add image URLs to sitemaps" is enabled
+    - Posts have featured images set
+    - Image URLs are publicly accessible
+  </Accordion>
+  
+  <Accordion title="Duplicate URLs in sitemap">
+    **Cause:** Multiple SEO plugins generating sitemaps
+    
+    **Solution:** Enable Coexist Mode or disable sitemaps in other plugins
+  </Accordion>
+  
+  <Accordion title="Google reports errors">
+    Common issues:
+    - Invalid lastmod dates (check post modified dates)
+    - Broken image URLs (verify featured images)
+    - Redirect chains (fix redirect issues)
+    
+    Use Google Search Console to identify specific errors.
+  </Accordion>
+</AccordionGroup>
+
+## Validation
+
+Validate your sitemap structure:
+
+<Steps>
+  <Step title="Access Sitemap">
+    Visit `https://yoursite.com/sitemap.xml` in a browser
+  </Step>
+  
+  <Step title="Validate XML">
+    Use an [XML Validator](https://www.xmlvalidation.com/) to check syntax
+  </Step>
+  
+  <Step title="Check Sitemap Protocol">
+    Verify against [Sitemaps.org protocol](https://www.sitemaps.org/protocol.html)
+  </Step>
+  
+  <Step title="Test in Search Console">
+    Submit to Google Search Console and check for errors
+  </Step>
+</Steps>
+
+## Performance Considerations
+
+<CardGroup cols={2}>
+  <Card title="Caching" icon="database">
+    Sitemaps are generated on-the-fly. Consider caching for high-traffic sites.
+  </Card>
+  
+  <Card title="Query Limits" icon="gauge">
+    Default limit of 1,000 posts prevents database overload on large sites.
+  </Card>
+</CardGroup>
+
+### Enable Caching
+
+```php
+add_filter( 'geoai_sitemap_cache_duration', function() {
+    return 3600; // Cache for 1 hour
+});
+```
+
+## Related Features
+
+<CardGroup cols={3}>
+  <Card title="Robots Meta" icon="robot" href="./meta-titles">
+    Control indexing per post
+  </Card>
+  
+  <Card title="Schema Markup" icon="code" href="./schema">
+    Structured data for search
+  </Card>
+  
+  <Card title="AI Crawler Control" icon="ban" href="./ai-crawler-control">
+    Manage AI bot access
+  </Card>
+</CardGroup>

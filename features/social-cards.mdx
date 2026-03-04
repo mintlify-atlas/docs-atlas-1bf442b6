@@ -1,0 +1,480 @@
+---
+title: Social Cards
+description: OpenGraph and Twitter Card meta tags for optimized social media sharing previews
+---
+
+## Overview
+
+**Social Cards** control how your content appears when shared on Facebook, Twitter, LinkedIn, and other social platforms. GEO AI automatically generates OpenGraph and Twitter Card meta tags with customizable defaults.
+
+<Info>
+  Optimized social cards can increase click-through rates by up to 40% on social media.
+</Info>
+
+## Supported Platforms
+
+<CardGroup cols={3}>
+  <Card title="Facebook" icon="facebook">
+    Uses OpenGraph protocol for rich link previews
+  </Card>
+  
+  <Card title="Twitter" icon="twitter">
+    Twitter Cards with large image support
+  </Card>
+  
+  <Card title="LinkedIn" icon="linkedin">
+    OpenGraph tags for professional sharing
+  </Card>
+  
+  <Card title="WhatsApp" icon="whatsapp">
+    OpenGraph for messaging previews
+  </Card>
+  
+  <Card title="Slack" icon="slack">
+    Rich unfurling for team channels
+  </Card>
+  
+  <Card title="Discord" icon="discord">
+    Embed previews in chat messages
+  </Card>
+</CardGroup>
+
+## Configuration
+
+<Steps>
+  <Step title="Access Social Settings">
+    Navigate to **Settings → GEO AI → Social**
+  </Step>
+  
+  <Step title="Upload Default Image">
+    Click **"Select Image from Library"** to choose a default OpenGraph image
+    
+    <Tip>
+      Recommended size: **1200x630px** (1.91:1 ratio)
+    </Tip>
+  </Step>
+  
+  <Step title="Set Twitter Options">
+    - Select card type: Summary or Summary Large Image
+    - Enter your Twitter handle (e.g., @yoursite)
+  </Step>
+  
+  <Step title="Save Changes">
+    Click **Save Changes** to activate social meta tags
+  </Step>
+</Steps>
+
+## Implementation Details
+
+### Social Meta Handler
+
+```php title="includes/class-geoai-social.php" showLineNumbers
+class GeoAI_Social {
+    private static $instance = null;
+
+    public static function get_instance() {
+        if ( null === self::$instance ) {
+            self::$instance = new self();
+        }
+        return self::$instance;
+    }
+
+    private function __construct() {
+        add_action( 'wp_head', array( $this, 'output_og_tags' ), 1 );
+    }
+
+    public function output_og_tags() {
+        if ( ! GeoAI_Compat::get_instance()->should_output_meta() ) {
+            return;
+        }
+
+        $defaults = get_option( 'geoai_social_defaults', array() );
+
+        if ( is_singular() ) {
+            $post_id   = get_the_ID();
+            $overrides = get_post_meta( $post_id, '_geoai_social_overrides', true );
+            $overrides = is_array( $overrides ) ? $overrides : array();
+
+            $og_title       = $overrides['og_title'] ?? get_the_title();
+            $og_description = $overrides['og_desc'] ?? wp_trim_words( get_the_excerpt(), 30 );
+            $og_image       = $overrides['og_image'] ?? ( get_the_post_thumbnail_url( $post_id, 'large' ) ?: $defaults['og_image'] ?? '' );
+            $og_url         = get_permalink();
+
+            // OpenGraph
+            echo '<meta property="og:type" content="article" />' . "\n";
+            echo '<meta property="og:title" content="' . esc_attr( $og_title ) . '" />' . "\n";
+            echo '<meta property="og:description" content="' . esc_attr( $og_description ) . '" />' . "\n";
+            echo '<meta property="og:url" content="' . esc_url( $og_url ) . '" />' . "\n";
+            
+            if ( $og_image ) {
+                echo '<meta property="og:image" content="' . esc_url( $og_image ) . '" />' . "\n";
+            }
+
+            // Twitter
+            $tw_card = $defaults['tw_card'] ?? 'summary_large_image';
+            echo '<meta name="twitter:card" content="' . esc_attr( $tw_card ) . '" />' . "\n";
+            echo '<meta name="twitter:title" content="' . esc_attr( $og_title ) . '" />' . "\n";
+            echo '<meta name="twitter:description" content="' . esc_attr( $og_description ) . '" />' . "\n";
+            
+            if ( $og_image ) {
+                echo '<meta name="twitter:image" content="' . esc_url( $og_image ) . '" />' . "\n";
+            }
+
+            if ( ! empty( $defaults['tw_site'] ) ) {
+                echo '<meta name="twitter:site" content="' . esc_attr( $defaults['tw_site'] ) . '" />' . "\n";
+            }
+        }
+    }
+}
+```
+
+## OpenGraph Tags
+
+GEO AI outputs the following OpenGraph meta tags:
+
+<AccordionGroup>
+  <Accordion title="og:type">
+    Content type (usually "article" for posts)
+    
+    ```html
+    <meta property="og:type" content="article" />
+    ```
+  </Accordion>
+  
+  <Accordion title="og:title">
+    Title displayed in social share preview
+    
+    ```html
+    <meta property="og:title" content="How to Optimize WordPress for AI Search" />
+    ```
+    
+    **Source priority:**
+    1. Per-post override
+    2. Post title
+  </Accordion>
+  
+  <Accordion title="og:description">
+    Description shown below title in preview
+    
+    ```html
+    <meta property="og:description" content="Learn proven strategies to optimize your WordPress site for AI-powered search engines." />
+    ```
+    
+    **Source priority:**
+    1. Per-post override
+    2. Post excerpt (trimmed to 30 words)
+  </Accordion>
+  
+  <Accordion title="og:url">
+    Canonical URL of the content
+    
+    ```html
+    <meta property="og:url" content="https://example.com/optimize-wordpress-ai/" />
+    ```
+  </Accordion>
+  
+  <Accordion title="og:image">
+    Preview image shown in social shares
+    
+    ```html
+    <meta property="og:image" content="https://example.com/wp-content/uploads/2025/03/featured.jpg" />
+    ```
+    
+    **Source priority:**
+    1. Per-post override image
+    2. Post featured image
+    3. Site default OpenGraph image
+  </Accordion>
+</AccordionGroup>
+
+## Twitter Card Tags
+
+<AccordionGroup>
+  <Accordion title="twitter:card">
+    Card type (summary or summary_large_image)
+    
+    ```html
+    <meta name="twitter:card" content="summary_large_image" />
+    ```
+    
+    **Options:**
+    - `summary`: Small square image
+    - `summary_large_image`: Large rectangular image (recommended)
+  </Accordion>
+  
+  <Accordion title="twitter:title">
+    Title (same as og:title)
+    
+    ```html
+    <meta name="twitter:title" content="How to Optimize WordPress for AI Search" />
+    ```
+  </Accordion>
+  
+  <Accordion title="twitter:description">
+    Description (same as og:description)
+    
+    ```html
+    <meta name="twitter:description" content="Learn proven strategies to optimize your WordPress site." />
+    ```
+  </Accordion>
+  
+  <Accordion title="twitter:image">
+    Image URL (same as og:image)
+    
+    ```html
+    <meta name="twitter:image" content="https://example.com/wp-content/uploads/featured.jpg" />
+    ```
+  </Accordion>
+  
+  <Accordion title="twitter:site">
+    Your Twitter handle
+    
+    ```html
+    <meta name="twitter:site" content="@yoursitename" />
+    ```
+    
+    <Tip>
+      This helps people discover and tag your account when sharing
+    </Tip>
+  </Accordion>
+</AccordionGroup>
+
+## Image Requirements
+
+### Recommended Specifications
+
+<CardGroup cols={2}>
+  <Card title="Dimensions" icon="ruler">
+    **1200 x 630 pixels**
+    
+    Aspect ratio: 1.91:1
+  </Card>
+  
+  <Card title="File Size" icon="file">
+    **Under 8MB** (ideally under 1MB)
+    
+    Larger files may not load on mobile
+  </Card>
+  
+  <Card title="Format" icon="image">
+    **JPG or PNG**
+    
+    Avoid WebP for maximum compatibility
+  </Card>
+  
+  <Card title="Content" icon="paintbrush">
+    **Include text overlay**
+    
+    Add brand name or key message
+  </Card>
+</CardGroup>
+
+### Platform-Specific Requirements
+
+| Platform | Minimum Size | Recommended Size | Max File Size |
+|----------|-------------|------------------|---------------|
+| Facebook | 200 x 200px | 1200 x 630px | 8 MB |
+| Twitter  | 300 x 157px | 1200 x 628px | 5 MB |
+| LinkedIn | 1200 x 627px | 1200 x 627px | 5 MB |
+| WhatsApp | 300 x 200px | 1200 x 630px | - |
+
+## Complete Output Example
+
+For a blog post, GEO AI outputs:
+
+```html
+<head>
+  <!-- OpenGraph Tags -->
+  <meta property="og:type" content="article" />
+  <meta property="og:title" content="WordPress Performance Optimization Guide" />
+  <meta property="og:description" content="Discover 10 proven techniques to reduce WordPress page load time by 50% and improve user experience for better SEO rankings." />
+  <meta property="og:url" content="https://example.com/wordpress-performance/" />
+  <meta property="og:image" content="https://example.com/wp-content/uploads/2025/03/performance-guide.jpg" />
+  
+  <!-- Twitter Card Tags -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="WordPress Performance Optimization Guide" />
+  <meta name="twitter:description" content="Discover 10 proven techniques to reduce WordPress page load time by 50% and improve user experience for better SEO rankings." />
+  <meta name="twitter:image" content="https://example.com/wp-content/uploads/2025/03/performance-guide.jpg" />
+  <meta name="twitter:site" content="@mytechblog" />
+</head>
+```
+
+## Testing Social Cards
+
+<Tabs>
+  <Tab title="Facebook">
+    <Steps>
+      <Step title="Open Sharing Debugger">
+        Visit [Facebook Sharing Debugger](https://developers.facebook.com/tools/debug/)
+      </Step>
+      
+      <Step title="Enter URL">
+        Paste your page URL and click **Debug**
+      </Step>
+      
+      <Step title="Review Preview">
+        Check how the link preview will appear
+      </Step>
+      
+      <Step title="Scrape Again">
+        Click **Scrape Again** if you made changes
+      </Step>
+    </Steps>
+  </Tab>
+  
+  <Tab title="Twitter">
+    <Steps>
+      <Step title="Open Card Validator">
+        Visit [Twitter Card Validator](https://cards-dev.twitter.com/validator)
+      </Step>
+      
+      <Step title="Enter URL">
+        Paste your page URL and click **Preview card**
+      </Step>
+      
+      <Step title="Review Card">
+        Check the card preview and meta tag info
+      </Step>
+      
+      <Step title="Fix Issues">
+        Address any warnings or errors shown
+      </Step>
+    </Steps>
+  </Tab>
+  
+  <Tab title="LinkedIn">
+    <Steps>
+      <Step title="Open Post Inspector">
+        Visit [LinkedIn Post Inspector](https://www.linkedin.com/post-inspector/)
+      </Step>
+      
+      <Step title="Enter URL">
+        Paste your URL and click **Inspect**
+      </Step>
+      
+      <Step title="Review Preview">
+        See how posts will appear on LinkedIn
+      </Step>
+      
+      <Step title="Clear Cache">
+        Use inspector to clear LinkedIn's cache if needed
+      </Step>
+    </Steps>
+  </Tab>
+</Tabs>
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Design for Mobile" icon="mobile">
+    Ensure images and text are readable on small screens. Avoid tiny text in images.
+  </Card>
+  
+  <Card title="Add Text Overlay" icon="text">
+    Include your brand name or key message on the image for better recognition.
+  </Card>
+  
+  <Card title="Use High Contrast" icon="adjust">
+    Ensure text stands out against the background for maximum readability.
+  </Card>
+  
+  <Card title="Keep It Simple" icon="circle">
+    Avoid cluttered designs. One clear message works better than multiple.
+  </Card>
+  
+  <Card title="Test Colors" icon="palette">
+    Verify colors look good on both light and dark modes (Twitter, Facebook).
+  </Card>
+  
+  <Card title="Include Branding" icon="building">
+    Add your logo or site name to build brand recognition.
+  </Card>
+</CardGroup>
+
+## Per-Post Overrides
+
+Customize social cards for individual posts:
+
+```php
+// Set custom OpenGraph overrides for a specific post
+$social_overrides = array(
+    'og_title' => 'Custom Social Title Different from SEO Title',
+    'og_desc'  => 'Custom description optimized for social sharing',
+    'og_image' => 'https://example.com/custom-social-image.jpg',
+);
+
+update_post_meta( $post_id, '_geoai_social_overrides', $social_overrides );
+```
+
+<Note>
+  Per-post overrides are planned for the admin UI in a future update. Currently available programmatically.
+</Note>
+
+## Common Issues
+
+<AccordionGroup>
+  <Accordion title="Old image shows when sharing">
+    **Cause:** Social platforms cache previews
+    
+    **Solution:**
+    - Use Facebook Sharing Debugger to "Scrape Again"
+    - Clear LinkedIn cache with Post Inspector
+    - Wait 24-48 hours for Twitter cache to expire
+  </Accordion>
+  
+  <Accordion title="Image not appearing">
+    **Check:**
+    - Image URL is absolute (not relative)
+    - Image is publicly accessible (not password protected)
+    - Image meets minimum size requirements
+    - No robots.txt blocking image access
+  </Accordion>
+  
+  <Accordion title="Wrong title or description">
+    **Check:**
+    - No other SEO plugin is overriding tags
+    - Compatibility mode is configured correctly
+    - View page source to verify GEO AI tags are present
+  </Accordion>
+  
+  <Accordion title="Duplicate OpenGraph tags">
+    **Cause:** Multiple SEO plugins active
+    
+    **Solution:** Enable Coexist Mode in Settings → General
+  </Accordion>
+</AccordionGroup>
+
+## Design Tools
+
+Create professional OpenGraph images:
+
+<CardGroup cols={3}>
+  <Card title="Canva" icon="palette" href="https://www.canva.com">
+    Templates for social media graphics (1200x630px)
+  </Card>
+  
+  <Card title="Figma" icon="pen-tool" href="https://www.figma.com">
+    Design custom social card templates
+  </Card>
+  
+  <Card title="Adobe Express" icon="wand-magic" href="https://www.adobe.com/express">
+    Quick social media image creation
+  </Card>
+</CardGroup>
+
+## Related Features
+
+<CardGroup cols={3}>
+  <Card title="Meta Titles" icon="heading" href="./meta-titles">
+    SEO title and description tags
+  </Card>
+  
+  <Card title="Schema Markup" icon="code" href="./schema">
+    Structured data for search engines
+  </Card>
+  
+  <Card title="AI Audit" icon="robot" href="./ai-audit">
+    Content optimization analysis
+  </Card>
+</CardGroup>

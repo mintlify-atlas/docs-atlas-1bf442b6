@@ -1,0 +1,286 @@
+---
+title: Installation
+description: Install GEO AI WordPress plugin via admin, manual upload, or development setup with npm build process
+---
+
+GEO AI is a modern WordPress SEO plugin optimized for AI answer engines (Google AI Overviews, Perplexity, ChatGPT). Choose the installation method that fits your workflow.
+
+## Requirements
+
+Before installing, ensure your environment meets these requirements:
+
+- **WordPress**: 6.2 or higher
+- **PHP**: 8.1 or higher
+- **Gutenberg**: Block editor must be enabled (for Answer Card block and editor sidebar)
+- **Google Gemini API Key**: Free tier available at [Google AI Studio](https://makersuite.google.com/app/apikey)
+
+---
+
+## WordPress Admin Install
+
+<Note>
+Recommended for most users. No command line required.
+</Note>
+
+<Steps>
+  <Step title="Download the Plugin">
+    Download the latest `.zip` release file from the releases page.
+  </Step>
+
+  <Step title="Upload to WordPress">
+    1. Go to **Plugins → Add New → Upload Plugin**
+    2. Click **Choose File** and select the downloaded `.zip`
+    3. Click **Install Now**
+  </Step>
+
+  <Step title="Activate">
+    Click **Activate Plugin** once the upload completes.
+  </Step>
+
+  <Step title="Configure Settings">
+    Navigate to **Settings → GEO AI** to begin configuration. See the [Configuration](/configuration) page for details.
+  </Step>
+</Steps>
+
+---
+
+## Manual Installation
+
+<Note>
+For users who want to install from source or deploy to custom environments.
+</Note>
+
+<Steps>
+  <Step title="Clone or Download the Repository">
+    ```bash
+    git clone https://github.com/fredoyetayo/geo-ai.git
+    cd geo-ai
+    ```
+  </Step>
+
+  <Step title="Install JavaScript Dependencies">
+    ```bash
+    npm install
+    ```
+  </Step>
+
+  <Step title="Download Action Scheduler">
+    GEO AI uses Action Scheduler for background task processing. Choose one option:
+
+    **Option A: Download from WordPress.org**
+    ```bash
+    mkdir -p vendor
+    cd vendor
+    wget https://downloads.wordpress.org/plugin/action-scheduler.latest-stable.zip
+    unzip action-scheduler.latest-stable.zip
+    rm action-scheduler.latest-stable.zip
+    cd ..
+    ```
+
+    **Option B: Use Composer**
+    ```bash
+    composer require woocommerce/action-scheduler
+    ```
+  </Step>
+
+  <Step title="Build JavaScript Assets">
+    ```bash
+    npm run build
+    ```
+
+    This compiles:
+    - `src/editor.js` → `build/editor.js` (Editor sidebar plugin)
+    - `blocks/answer-card/*` → `build/answer-card/` (Answer Card block)
+  </Step>
+
+  <Step title="Upload to WordPress">
+    Copy the entire `geo-ai` folder to your WordPress plugins directory:
+
+    ```bash
+    cp -r geo-ai /path/to/wordpress/wp-content/plugins/
+    ```
+  </Step>
+
+  <Step title="Activate via WordPress Admin">
+    1. Go to **Plugins** in WordPress admin
+    2. Find "GEO AI (AI SEO)"
+    3. Click **Activate**
+  </Step>
+
+  <Step title="Flush Permalinks">
+    After activation, go to **Settings → Permalinks** and click **Save Changes** to flush rewrite rules for sitemaps.
+  </Step>
+</Steps>
+
+---
+
+## Development Setup
+
+<Info>
+For plugin developers contributing to GEO AI or extending functionality.
+</Info>
+
+### Prerequisites
+
+- Node.js 18+
+- npm or yarn  
+- PHP 8.1+
+- WordPress 6.2+ development environment
+- Composer (optional, for PHPCS)
+
+### Quick Setup with wp-env
+
+<Steps>
+  <Step title="Install wp-env Globally">
+    ```bash
+    npm install -g @wordpress/env
+    ```
+  </Step>
+
+  <Step title="Clone Repository">
+    ```bash
+    git clone https://github.com/fredoyetayo/geo-ai.git
+    cd geo-ai
+    ```
+  </Step>
+
+  <Step title="Install Dependencies">
+    ```bash
+    npm install
+    ```
+  </Step>
+
+  <Step title="Start WordPress Environment">
+    ```bash
+    npx wp-env start
+    ```
+
+    Your local WordPress site will be available at:
+    - **Frontend**: http://localhost:8888
+    - **Admin**: http://localhost:8888/wp-admin
+    - **Credentials**: admin / password
+  </Step>
+
+  <Step title="Build Assets in Watch Mode">
+    ```bash
+    npm start
+    ```
+
+    This runs webpack in watch mode - files rebuild automatically when you make changes.
+  </Step>
+</Steps>
+
+### Development Commands
+
+<CodeGroup>
+```bash Development build with watch mode
+npm start
+```
+
+```bash Production build (minified)
+npm run build
+```
+
+```bash Lint JavaScript
+npm run lint:js
+```
+
+```bash Lint CSS
+npm run lint:css
+```
+
+```bash Auto-format code
+npm run format
+```
+</CodeGroup>
+
+### Alternative: Symlink Installation
+
+For development without wp-env, use a symlink:
+
+```bash
+ln -s /path/to/geo-ai /path/to/wordpress/wp-content/plugins/geo-ai
+```
+
+### File Structure After Build
+
+```plaintext
+geo-ai/
+├── geo-ai.php                 # Main plugin file
+├── includes/                  # PHP classes
+│   ├── class-geoai-admin.php
+│   ├── class-geoai-rest.php
+│   ├── class-geoai-analyzer.php
+│   └── ...
+├── blocks/                    # Block source files
+│   └── answer-card/
+│       ├── block.json
+│       ├── index.js
+│       ├── edit.js
+│       └── save.js
+├── src/                       # JavaScript source
+│   └── editor.js             # Editor sidebar
+├── build/                     # Compiled JS (npm build output)
+│   ├── editor.js
+│   ├── editor.asset.php
+│   └── answer-card/
+├── assets/                    # Static CSS/JS
+│   ├── admin.css
+│   └── admin.js
+└── vendor/                    # Third-party libraries
+    └── action-scheduler/      # Background task processor
+```
+
+---
+
+## Troubleshooting
+
+<Accordion title="'Class not found' errors">
+  **Cause**: Action Scheduler library is missing.
+
+  **Solution**: Ensure Action Scheduler is downloaded to `vendor/action-scheduler/`. Follow Step 3 in Manual Installation.
+</Accordion>
+
+<Accordion title="JavaScript not loading in editor">
+  **Cause**: Assets not built.
+
+  **Solution**: Run `npm install` followed by `npm run build` from the plugin directory.
+</Accordion>
+
+<Accordion title="Sitemap returns 404">
+  **Cause**: Rewrite rules not flushed after activation.
+
+  **Solution**: Go to **Settings → Permalinks** in WordPress admin and click **Save Changes**.
+</Accordion>
+
+<Accordion title="API key not saving">
+  **Cause**: File permission issues or missing PHP sodium extension.
+
+  **Solution**: 
+  - Check that `wp-content/uploads/` has write permissions
+  - Verify PHP sodium extension is available: `php -m | grep sodium`
+</Accordion>
+
+<Accordion title="Node build errors">
+  **Cause**: Corrupted or outdated dependencies.
+
+  **Solution**: 
+  ```bash
+  rm -rf node_modules package-lock.json
+  npm install
+  npm run build
+  ```
+</Accordion>
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Run your first AI audit in 5 minutes
+  </Card>
+  <Card title="Configuration" icon="gear" href="/configuration">
+    Configure API key, templates, and settings
+  </Card>
+</CardGroup>

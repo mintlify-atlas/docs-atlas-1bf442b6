@@ -1,0 +1,701 @@
+---
+title: Contributing Guidelines
+description: Learn how to contribute to GEO AI WordPress plugin development
+---
+
+## Welcome Contributors!
+
+Thank you for your interest in contributing to GEO AI! We welcome contributions from developers of all skill levels. This guide will help you get started.
+
+## Ways to Contribute
+
+<CardGroup cols={2}>
+  <Card title="Report Bugs" icon="bug">
+    Found an issue? Report it on GitHub Issues with detailed reproduction steps.
+  </Card>
+  
+  <Card title="Suggest Features" icon="lightbulb">
+    Have an idea? Open a GitHub Discussion to propose new features.
+  </Card>
+  
+  <Card title="Submit Code" icon="code">
+    Fix bugs, add features, or improve documentation via Pull Requests.
+  </Card>
+  
+  <Card title="Write Documentation" icon="book">
+    Improve guides, add examples, or translate documentation.
+  </Card>
+</CardGroup>
+
+## Getting Started
+
+### 1. Fork the Repository
+
+```bash
+# Fork on GitHub, then clone your fork
+git clone https://github.com/YOUR_USERNAME/geo-ai.git
+cd geo-ai
+```
+
+### 2. Set Up Development Environment
+
+**Requirements**:
+- WordPress 6.2+
+- PHP 8.1+
+- Node.js 18+
+- Composer (optional)
+- Local WordPress development environment (LocalWP, MAMP, Docker, etc.)
+
+**Install Dependencies**:
+
+```bash
+# Install Node.js dependencies
+npm install
+
+# Install PHP dependencies (if using Composer)
+composer install --dev
+```
+
+### 3. Create a Feature Branch
+
+```bash
+# Create and checkout a new branch
+git checkout -b feature/amazing-feature
+
+# Or for bug fixes
+git checkout -b fix/issue-description
+```
+
+**Branch Naming Convention**:
+- `feature/` - New features
+- `fix/` - Bug fixes
+- `docs/` - Documentation changes
+- `refactor/` - Code refactoring
+- `test/` - Test additions/changes
+
+## Development Workflow
+
+### Building Assets
+
+**Development Mode** (with watch):
+
+```bash
+npm start
+```
+
+This starts webpack in watch mode:
+- Compiles JavaScript and CSS
+- Watches for file changes
+- Provides source maps for debugging
+- Enables hot module replacement
+
+**Production Build**:
+
+```bash
+npm run build
+```
+
+Creates optimized production bundles:
+- Minified JavaScript
+- Optimized CSS
+- No source maps
+- Smaller file sizes
+
+### Code Quality Tools
+
+**Lint JavaScript**:
+
+```bash
+npm run lint:js
+
+# Auto-fix issues
+npm run lint:js -- --fix
+```
+
+**Lint CSS**:
+
+```bash
+npm run lint:css
+
+# Auto-fix issues
+npm run lint:css -- --fix
+```
+
+**Format Code**:
+
+```bash
+npm run format
+```
+
+**PHP Code Sniffer** (if installed):
+
+```bash
+# Check PHP coding standards
+composer run phpcs
+
+# Auto-fix PHP issues
+composer run phpcbf
+```
+
+## Coding Standards
+
+### PHP Standards
+
+Follow [WordPress PHP Coding Standards](https://developer.wordpress.org/coding-standards/wordpress-coding-standards/php/):
+
+<AccordionGroup>
+  <Accordion title="Naming Conventions">
+    ```php
+    // Classes: PascalCase with prefix
+    class GeoAI_Custom_Class {}
+    
+    // Functions: snake_case with prefix
+    function geoai_custom_function() {}
+    
+    // Variables: snake_case
+    $custom_variable = 'value';
+    
+    // Constants: UPPERCASE with prefix
+    define( 'GEOAI_CUSTOM_CONSTANT', 'value' );
+    ```
+  </Accordion>
+  
+  <Accordion title="Spacing and Indentation">
+    ```php
+    // Use tabs for indentation
+    function geoai_example() {
+    	if ( $condition ) {
+    		// Code here
+    	}
+    }
+    
+    // Spaces around operators
+    $result = $value1 + $value2;
+    
+    // Spaces after control structures
+    if ( $condition ) {
+    	do_something();
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Documentation">
+    ```php
+    /**
+     * Short description.
+     *
+     * Longer description if needed.
+     *
+     * @since 1.0.0
+     *
+     * @param int    $post_id Post ID.
+     * @param string $keyword Focus keyword.
+     * @return array Analysis results.
+     */
+    function geoai_analyze_keyword( $post_id, $keyword ) {
+    	// Implementation
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Security Best Practices">
+    ```php
+    // Always escape output
+    echo esc_html( $user_input );
+    echo esc_url( $url );
+    echo esc_attr( $attribute );
+    
+    // Sanitize input
+    $clean_text = sanitize_text_field( $_POST['field'] );
+    $post_id = absint( $_GET['post_id'] );
+    
+    // Verify nonces
+    if ( ! wp_verify_nonce( $_POST['nonce'], 'action_name' ) ) {
+    	wp_die( 'Security check failed' );
+    }
+    
+    // Check capabilities
+    if ( ! current_user_can( 'manage_options' ) ) {
+    	wp_die( 'Unauthorized' );
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+### JavaScript Standards
+
+Follow [WordPress JavaScript Coding Standards](https://developer.wordpress.org/coding-standards/wordpress-coding-standards/javascript/):
+
+```js
+// Use const/let, not var
+const API_ENDPOINT = '/wp-json/geoai/v1';
+let isLoading = false;
+
+// Arrow functions for callbacks
+const fetchAudit = async (postId) => {
+    const response = await wp.apiFetch({
+        path: `${API_ENDPOINT}/audit`,
+        method: 'POST',
+        data: { post_id: postId },
+    });
+    return response;
+};
+
+// Use WordPress i18n
+import { __ } from '@wordpress/i18n';
+const message = __('Audit complete', 'geo-ai');
+
+// Document functions
+/**
+ * Run content audit for a post.
+ *
+ * @param {number} postId - The post ID to audit.
+ * @return {Promise<Object>} Audit results.
+ */
+async function runAudit(postId) {
+    // Implementation
+}
+```
+
+### CSS Standards
+
+Follow [WordPress CSS Coding Standards](https://developer.wordpress.org/coding-standards/wordpress-coding-standards/css/):
+
+```css
+/* Use BEM-like naming */
+.geoai-answer-card {}
+.geoai-answer-card__header {}
+.geoai-answer-card__header--highlighted {}
+
+/* Consistent spacing */
+.geoai-selector {
+    display: flex;
+    align-items: center;
+    padding: 16px;
+}
+
+/* Mobile-first approach */
+.geoai-component {
+    width: 100%;
+}
+
+@media (min-width: 768px) {
+    .geoai-component {
+        width: 50%;
+    }
+}
+```
+
+## Testing
+
+### Manual Testing Checklist
+
+Before submitting a PR, test your changes:
+
+- [ ] Works in latest WordPress version
+- [ ] Works in WordPress 6.2 (minimum supported)
+- [ ] Works with PHP 8.1 and 8.2+
+- [ ] No PHP errors or warnings
+- [ ] No JavaScript console errors
+- [ ] Works in Chrome, Firefox, Safari, Edge
+- [ ] Mobile-responsive
+- [ ] Accessible (keyboard navigation, screen readers)
+- [ ] Works with default WordPress themes
+- [ ] No conflicts with common plugins
+
+### Testing in Different Environments
+
+<Tabs>
+  <Tab title="Local Development">
+    Test in your local WordPress installation:
+    
+    1. Activate the plugin
+    2. Test all modified functionality
+    3. Check browser console for errors
+    4. Verify database changes (if any)
+  </Tab>
+  
+  <Tab title="Fresh WordPress Install">
+    Test on a clean WordPress installation:
+    
+    ```bash
+    # Using WP-CLI
+    wp core download
+    wp core config --dbname=test --dbuser=root --dbpass=password
+    wp core install --url=test.local --title="Test Site" \
+        --admin_user=admin --admin_password=password \
+        --admin_email=admin@test.local
+    ```
+  </Tab>
+  
+  <Tab title="Unit Tests">
+    Run automated tests (when available):
+    
+    ```bash
+    # Install test dependencies
+    composer install --dev
+    
+    # Set up test database
+    bash bin/install-wp-tests.sh wordpress_test root password localhost latest
+    
+    # Run tests
+    composer test
+    ```
+  </Tab>
+</Tabs>
+
+### Test Data
+
+Create realistic test scenarios:
+
+```php
+// Create test posts with varying content
+for ( $i = 1; $i <= 5; $i++ ) {
+    wp_insert_post( array(
+        'post_title'   => "Test Post {$i}",
+        'post_content' => str_repeat( 'Lorem ipsum dolor sit amet. ', $i * 100 ),
+        'post_status'  => 'publish',
+    ) );
+}
+```
+
+## Submitting Changes
+
+### Commit Guidelines
+
+Write clear, descriptive commit messages:
+
+**Format**:
+```
+<type>: <subject>
+
+<body (optional)>
+
+<footer (optional)>
+```
+
+**Types**:
+- `feat:` - New feature
+- `fix:` - Bug fix
+- `docs:` - Documentation changes
+- `style:` - Code style changes (formatting, no logic changes)
+- `refactor:` - Code refactoring
+- `test:` - Adding or updating tests
+- `chore:` - Build process, dependencies, etc.
+
+**Examples**:
+
+```bash
+# Good commit messages
+git commit -m "feat: add keyword density analyzer"
+git commit -m "fix: resolve API timeout on large posts"
+git commit -m "docs: update REST API examples"
+
+# With detailed description
+git commit -m "feat: add background audit processing
+
+Implement Action Scheduler integration for running audits
+in the background. This prevents timeout issues on large
+sites with many posts.
+
+Closes #123"
+```
+
+### Creating a Pull Request
+
+1. **Push Your Branch**:
+
+```bash
+git push origin feature/amazing-feature
+```
+
+2. **Open Pull Request on GitHub**:
+
+   - Go to the repository on GitHub
+   - Click "New Pull Request"
+   - Select your branch
+   - Fill out the PR template
+
+3. **PR Description Template**:
+
+```markdown
+## Description
+Brief description of what this PR does.
+
+## Type of Change
+- [ ] Bug fix (non-breaking change which fixes an issue)
+- [ ] New feature (non-breaking change which adds functionality)
+- [ ] Breaking change (fix or feature that would cause existing functionality to not work as expected)
+- [ ] Documentation update
+
+## Testing
+Describe the tests you ran and how to reproduce them.
+
+## Screenshots (if applicable)
+Add screenshots for UI changes.
+
+## Checklist
+- [ ] My code follows the WordPress coding standards
+- [ ] I have tested my changes
+- [ ] I have commented my code where needed
+- [ ] I have updated documentation
+- [ ] My changes generate no new warnings
+- [ ] I have added tests that prove my fix/feature works
+
+## Related Issues
+Closes #(issue number)
+```
+
+### Code Review Process
+
+After submitting your PR:
+
+1. **Automated Checks**: Wait for CI/CD checks to pass
+2. **Maintainer Review**: A maintainer will review your code
+3. **Feedback**: Address any requested changes
+4. **Approval**: Once approved, your PR will be merged
+
+<Note>
+Be patient and responsive to feedback. Code reviews help maintain quality and are a learning opportunity.
+</Note>
+
+## Issue Guidelines
+
+### Reporting Bugs
+
+Use this template when reporting bugs:
+
+```markdown
+## Bug Description
+Clear description of the bug.
+
+## Steps to Reproduce
+1. Go to '...'
+2. Click on '...'
+3. Scroll down to '...'
+4. See error
+
+## Expected Behavior
+What you expected to happen.
+
+## Actual Behavior
+What actually happened.
+
+## Screenshots
+If applicable, add screenshots.
+
+## Environment
+- WordPress Version: 6.4
+- GEO AI Version: 1.6.0
+- PHP Version: 8.2
+- Browser: Chrome 120
+- Active Theme: Twenty Twenty-Four
+- Other Active Plugins: Yoast SEO, WooCommerce
+
+## Error Messages
+Paste any error messages from:
+- Browser console
+- PHP error log
+- WordPress debug.log
+
+## Additional Context
+Any other relevant information.
+```
+
+### Feature Requests
+
+```markdown
+## Feature Description
+Describe the feature you'd like to see.
+
+## Use Case
+Why is this feature needed? What problem does it solve?
+
+## Proposed Solution
+How do you envision this working?
+
+## Alternatives Considered
+Other solutions you've thought about.
+
+## Additional Context
+Mockups, examples from other plugins, etc.
+```
+
+## Documentation
+
+### Writing Documentation
+
+When adding features, update documentation:
+
+1. **Code Documentation**: Add PHPDoc/JSDoc comments
+2. **User Documentation**: Update README.md or docs/
+3. **Developer Documentation**: Update this guide
+4. **Changelog**: Add entry to CHANGELOG.md
+
+**Example Documentation**:
+
+```php
+/**
+ * Analyze post content for SEO optimization.
+ *
+ * This function runs a comprehensive SEO audit on the specified post,
+ * analyzing content structure, keyword usage, readability, and technical
+ * SEO factors. Results are stored in post meta and returned.
+ *
+ * @since 1.6.0
+ *
+ * @param int   $post_id The post ID to analyze.
+ * @param array $options Optional. Analysis options.
+ * @return array|WP_Error Analysis results or error on failure.
+ *
+ * @example
+ * $results = geoai_analyze_post( 123, array(
+ *     'focus_keyword' => 'WordPress SEO',
+ *     'reanalyze'     => true,
+ * ) );
+ *
+ * if ( ! is_wp_error( $results ) ) {
+ *     echo 'Score: ' . $results['scores']['total'];
+ * }
+ */
+function geoai_analyze_post( $post_id, $options = array() ) {
+    // Implementation
+}
+```
+
+## Community Guidelines
+
+### Code of Conduct
+
+<Warning>
+All contributors must adhere to our Code of Conduct:
+
+- Be respectful and inclusive
+- Welcome newcomers
+- Accept constructive criticism
+- Focus on what's best for the community
+- Show empathy towards others
+</Warning>
+
+### Communication Channels
+
+- **GitHub Issues**: Bug reports and feature requests
+- **GitHub Discussions**: Questions, ideas, announcements
+- **Pull Requests**: Code contributions and reviews
+
+### Getting Help
+
+If you're stuck:
+
+1. Check existing documentation
+2. Search closed issues and PRs
+3. Ask in GitHub Discussions
+4. Tag maintainers if urgent (use sparingly)
+
+## Release Process
+
+### Version Numbering
+
+GEO AI follows [Semantic Versioning](https://semver.org/):
+
+- **MAJOR**: Breaking changes (2.0.0)
+- **MINOR**: New features, backward-compatible (1.7.0)
+- **PATCH**: Bug fixes, backward-compatible (1.6.1)
+
+### Changelog
+
+Update `CHANGELOG.md` with your changes:
+
+```markdown
+## [Unreleased]
+
+### Added
+- New keyword density analyzer
+- Background audit processing
+
+### Changed
+- Improved API error handling
+- Updated UI for settings page
+
+### Fixed
+- Fixed timeout on large posts
+- Resolved conflict with Yoast SEO
+
+### Deprecated
+- `geoai_old_function()` - Use `geoai_new_function()` instead
+```
+
+## Recognition
+
+Contributors are recognized in:
+
+- `README.md` contributors section
+- Release notes
+- GitHub contributors page
+
+Significant contributions may earn you:
+
+- Collaborator status
+- Early access to new features
+- Input on roadmap decisions
+
+## Quick Reference
+
+### Common Commands
+
+```bash
+# Development
+npm start                  # Start dev server
+npm run build             # Production build
+npm run lint:js           # Lint JavaScript
+npm run lint:css          # Lint CSS
+npm run format            # Format all code
+
+# Git
+git checkout -b feature/name  # Create branch
+git add .                     # Stage changes
+git commit -m "feat: ..."     # Commit
+git push origin feature/name  # Push branch
+
+# Testing
+wp plugin activate geo-ai     # Activate plugin
+wp geoai audit 123           # Test CLI command
+```
+
+### File Locations
+
+| Component | Location |
+|-----------|----------|
+| Main plugin file | `geo-ai.php` |
+| PHP classes | `includes/` |
+| Gutenberg blocks | `blocks/` |
+| JavaScript source | `src/` |
+| Built assets | `build/`, `assets/` |
+| Styles | `blocks/*/style.css`, `blocks/*/editor.css` |
+| Documentation | `README.md`, `docs/` |
+
+### Need Help?
+
+<CardGroup cols={2}>
+  <Card title="GitHub Issues" icon="github" href="https://github.com/geoai/geo-ai/issues">
+    Report bugs or request features
+  </Card>
+  
+  <Card title="Discussions" icon="comments" href="https://github.com/geoai/geo-ai/discussions">
+    Ask questions and share ideas
+  </Card>
+  
+  <Card title="Documentation" icon="book" href="/developers/architecture">
+    Read the developer documentation
+  </Card>
+  
+  <Card title="WordPress Handbook" icon="wordpress" href="https://developer.wordpress.org/">
+    Learn WordPress development
+  </Card>
+</CardGroup>
+
+## Thank You!
+
+Your contributions make GEO AI better for everyone. Whether you're fixing a typo, reporting a bug, or adding a major feature - every contribution matters.
+
+Happy coding! 🚀

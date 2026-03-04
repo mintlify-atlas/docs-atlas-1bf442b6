@@ -1,0 +1,371 @@
+---
+title: 'GeoAI_Social'
+description: 'Social media meta tags for OpenGraph and Twitter Cards'
+---
+
+## Overview
+
+The `GeoAI_Social` class manages social media meta tags (OpenGraph and Twitter Cards) to control how your content appears when shared on social platforms like Facebook, Twitter, LinkedIn, and others.
+
+**Namespace:** `GeoAI\Core`
+
+**Location:** `includes/class-geoai-social.php`
+
+## Key Features
+
+- OpenGraph meta tags
+- Twitter Card meta tags
+- Custom social images
+- Per-post social overrides
+- Automatic fallback to defaults
+- Compatibility mode support
+
+## Public Methods
+
+### get_instance()
+
+Returns the singleton instance of the social class.
+
+```php
+public static function get_instance()
+```
+
+**Returns:** `GeoAI_Social` - The singleton instance
+
+**Example:**
+```php
+$social = \GeoAI\Core\GeoAI_Social::get_instance();
+```
+
+### output_og_tags()
+
+Outputs OpenGraph and Twitter Card meta tags in the website head.
+
+```php
+public function output_og_tags()
+```
+
+**Hooks:** `wp_head` (priority 1)
+
+**Outputs:**
+- OpenGraph meta tags (og:*)
+- Twitter Card meta tags (twitter:*)
+
+**Example Output:**
+```html
+<meta property="og:type" content="article" />
+<meta property="og:title" content="Post Title" />
+<meta property="og:description" content="Post description..." />
+<meta property="og:url" content="https://example.com/post/" />
+<meta property="og:image" content="https://example.com/image.jpg" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Post Title" />
+<meta name="twitter:description" content="Post description..." />
+<meta name="twitter:image" content="https://example.com/image.jpg" />
+<meta name="twitter:site" content="@yoursite" />
+```
+
+## OpenGraph Meta Tags
+
+### Supported Properties
+
+<ParamField path="og:type" type="string">
+  Content type (always "article" for posts)
+</ParamField>
+
+<ParamField path="og:title" type="string">
+  Post title or custom override
+</ParamField>
+
+<ParamField path="og:description" type="string">
+  Post excerpt or custom description
+</ParamField>
+
+<ParamField path="og:url" type="string">
+  Canonical URL of the post
+</ParamField>
+
+<ParamField path="og:image" type="string">
+  Featured image, custom image, or default fallback
+</ParamField>
+
+### Image Fallback Priority
+
+1. Custom post override image
+2. Post featured image
+3. Default site-wide image from settings
+
+## Twitter Card Meta Tags
+
+### Supported Properties
+
+<ParamField path="twitter:card" type="string">
+  Card type: "summary" or "summary_large_image"
+</ParamField>
+
+<ParamField path="twitter:title" type="string">
+  Same as og:title
+</ParamField>
+
+<ParamField path="twitter:description" type="string">
+  Same as og:description
+</ParamField>
+
+<ParamField path="twitter:image" type="string">
+  Same as og:image
+</ParamField>
+
+<ParamField path="twitter:site" type="string">
+  Twitter handle for the site (e.g., @yoursite)
+</ParamField>
+
+### Card Types
+
+**summary** - Small square image
+
+**summary_large_image** - Large rectangular image (recommended)
+
+## Configuration
+
+### Global Defaults
+
+Set default social media settings:
+
+```php
+$defaults = array(
+    'og_image' => 'https://example.com/default-og-image.jpg',
+    'og_image_id' => 123,  // WordPress attachment ID
+    'tw_card' => 'summary_large_image',
+    'tw_site' => '@yoursite'
+);
+
+update_option( 'geoai_social_defaults', $defaults );
+```
+
+### Settings Reference
+
+<ParamField path="og_image" type="string">
+  Default OpenGraph image URL
+</ParamField>
+
+<ParamField path="og_image_id" type="int">
+  WordPress attachment ID for default image
+</ParamField>
+
+<ParamField path="tw_card" type="string" default="summary_large_image">
+  Twitter Card type
+</ParamField>
+
+<ParamField path="tw_site" type="string">
+  Twitter handle with @ symbol
+</ParamField>
+
+## Per-Post Overrides
+
+Override social meta for individual posts:
+
+```php
+$post_id = 123;
+
+$overrides = array(
+    'og_title' => 'Custom Social Title',
+    'og_desc' => 'Custom social description for sharing',
+    'og_image' => 'https://example.com/custom-social-image.jpg'
+);
+
+update_post_meta( $post_id, '_geoai_social_overrides', $overrides );
+```
+
+### Override Fields
+
+<ParamField path="og_title" type="string">
+  Custom title for social sharing (overrides post title)
+</ParamField>
+
+<ParamField path="og_desc" type="string">
+  Custom description for social sharing (overrides excerpt)
+</ParamField>
+
+<ParamField path="og_image" type="string">
+  Custom image URL for social sharing (overrides featured image)
+</ParamField>
+
+## Usage Examples
+
+### Set Default Social Image
+
+```php
+// Upload or get existing image
+$image_id = 123; // WordPress attachment ID
+$image_url = wp_get_attachment_url( $image_id );
+
+$defaults = get_option( 'geoai_social_defaults', array() );
+$defaults['og_image'] = $image_url;
+$defaults['og_image_id'] = $image_id;
+
+update_option( 'geoai_social_defaults', $defaults );
+```
+
+### Configure Twitter Settings
+
+```php
+$defaults = get_option( 'geoai_social_defaults', array() );
+$defaults['tw_card'] = 'summary_large_image';
+$defaults['tw_site'] = '@mywebsite';
+
+update_option( 'geoai_social_defaults', $defaults );
+```
+
+### Custom Social Meta for Post
+
+```php
+$post_id = get_the_ID();
+
+update_post_meta( $post_id, '_geoai_social_overrides', array(
+    'og_title' => 'Amazing Article - Must Read!',
+    'og_desc' => 'Discover the secrets to success in this comprehensive guide.',
+    'og_image' => 'https://example.com/special-share-image.jpg'
+));
+```
+
+### Get Social Meta for Post
+
+```php
+$post_id = 123;
+$overrides = get_post_meta( $post_id, '_geoai_social_overrides', true );
+$defaults = get_option( 'geoai_social_defaults', array() );
+
+// Determine final values
+$og_title = $overrides['og_title'] ?? get_the_title( $post_id );
+$og_image = $overrides['og_image'] ?? 
+            get_the_post_thumbnail_url( $post_id, 'large' ) ?: 
+            $defaults['og_image'] ?? '';
+```
+
+## Image Requirements
+
+### OpenGraph Image Specs
+
+<ParamField path="Size" type="string">
+  1200 x 630 pixels (1.91:1 ratio)
+</ParamField>
+
+<ParamField path="Format" type="string">
+  JPG or PNG (avoid WebP for compatibility)
+</ParamField>
+
+<ParamField path="File Size" type="string">
+  Under 8MB, preferably under 1MB
+</ParamField>
+
+<ParamField path="Content" type="string">
+  Include text overlay with brand or key message
+</ParamField>
+
+### Twitter Image Specs
+
+**Summary Card:** 1:1 ratio, minimum 144x144px
+
+**Summary Large Image:** 2:1 ratio, minimum 300x157px, recommended 1200x600px
+
+## Testing Social Meta
+
+### Facebook Sharing Debugger
+
+Test and clear cache:
+
+```
+https://developers.facebook.com/tools/debug/
+```
+
+Enter your URL and click "Scrape Again" to refresh Facebook's cache.
+
+### Twitter Card Validator
+
+Validate Twitter Cards:
+
+```
+https://cards-dev.twitter.com/validator
+```
+
+### LinkedIn Post Inspector
+
+Test LinkedIn sharing:
+
+```
+https://www.linkedin.com/post-inspector/
+```
+
+## Compatibility Mode
+
+The class respects compatibility settings:
+
+```php
+if ( ! GeoAI_Compat::get_instance()->should_output_meta() ) {
+    return; // Skip output when in coexist mode
+}
+```
+
+This prevents duplicate social meta tags when using other SEO plugins.
+
+## Fallback Behavior
+
+### Title Fallback
+
+1. Custom og_title override
+2. Post title
+
+### Description Fallback
+
+1. Custom og_desc override
+2. Post excerpt (trimmed to 30 words)
+
+### Image Fallback
+
+1. Custom og_image override
+2. Post featured image (large size)
+3. Default site-wide og_image from settings
+4. Empty (no image tag output)
+
+## Advanced Customization
+
+### Add Additional OpenGraph Properties
+
+```php
+add_action( 'wp_head', function() {
+    if ( is_singular( 'post' ) ) {
+        $post = get_post();
+        echo '<meta property="og:published_time" content="' . 
+             esc_attr( get_the_date( 'c', $post ) ) . '" />' . "\n";
+        echo '<meta property="og:modified_time" content="' . 
+             esc_attr( get_the_modified_date( 'c', $post ) ) . '" />' . "\n";
+        
+        $category = get_the_category( $post );
+        if ( ! empty( $category ) ) {
+            echo '<meta property="article:section" content="' . 
+                 esc_attr( $category[0]->name ) . '" />' . "\n";
+        }
+    }
+}, 2 );
+```
+
+### Add Twitter Author Tag
+
+```php
+add_action( 'wp_head', function() {
+    if ( is_singular() ) {
+        $author_twitter = get_the_author_meta( 'twitter' );
+        if ( $author_twitter ) {
+            echo '<meta name="twitter:creator" content="@' . 
+                 esc_attr( $author_twitter ) . '" />' . "\n";
+        }
+    }
+}, 2 );
+```
+
+## Related Classes
+
+- [GeoAI_Meta](/api/meta) - Meta tags and SEO titles
+- [GeoAI_Schema](/api/schema) - Structured data markup
+- [GeoAI_Admin](/api/admin) - Admin interface and settings
+- [GeoAI_Compat](/api/compat) - Plugin compatibility

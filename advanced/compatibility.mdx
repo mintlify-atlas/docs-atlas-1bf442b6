@@ -1,0 +1,414 @@
+---
+title: 'Compatibility Mode'
+description: 'How GEO AI coexists with Yoast, Rank Math, SEOPress, and All in One SEO'
+icon: 'handshake'
+---
+
+GEO AI can run alongside other SEO plugins without conflicts using **Compatibility Mode**. This prevents duplicate meta tags, schema markup, and sitemaps.
+
+## How It Works
+
+The compatibility system automatically detects other SEO plugins and adjusts GEO AI's behavior to prevent overlapping outputs.
+
+**File:** `includes/class-geoai-compat.php`
+
+---
+
+## Supported Plugins
+
+<CardGroup cols={2}>
+  <Card title="Yoast SEO" icon="y">
+    Detects `WPSEO_VERSION` constant or `WPSEO_Options` class
+  </Card>
+  <Card title="Rank Math" icon="r">
+    Detects `RANK_MATH_VERSION` constant or `RankMath` class
+  </Card>
+  <Card title="SEOPress" icon="s">
+    Detects `SEOPRESS_VERSION` constant or `SEOPress` class
+  </Card>
+  <Card title="All in One SEO" icon="a">
+    Detects `AIOSEO_VERSION` constant or `All_in_One_SEO_Pack` class
+  </Card>
+</CardGroup>
+
+---
+
+## Detection Logic
+
+The `GeoAI_Compat` class runs on initialization and checks for active SEO plugins:
+
+```php
+public function detect_conflicts() {
+    $conflicts = array();
+
+    if ( defined( 'WPSEO_VERSION' ) || class_exists( 'WPSEO_Options' ) ) {
+        $conflicts[] = 'Yoast SEO';
+    }
+
+    if ( defined( 'RANK_MATH_VERSION' ) || class_exists( 'RankMath' ) ) {
+        $conflicts[] = 'Rank Math';
+    }
+
+    if ( defined( 'SEOPRESS_VERSION' ) || class_exists( 'SEOPress' ) ) {
+        $conflicts[] = 'SEOPress';
+    }
+
+    if ( class_exists( 'All_in_One_SEO_Pack' ) || defined( 'AIOSEO_VERSION' ) ) {
+        $conflicts[] = 'All in One SEO';
+    }
+
+    return apply_filters( 'geoai_detected_conflicts', $conflicts );
+}
+```
+
+<Tip>
+  Use the `geoai_detected_conflicts` filter to add detection for custom SEO plugins.
+</Tip>
+
+---
+
+## Compatibility Modes
+
+GEO AI supports two modes:
+
+<Tabs>
+  <Tab title="Standalone Mode (Default)">
+    GEO AI outputs all meta tags, schema, and sitemaps as if it's the only SEO plugin.
+    
+    **Use when:**
+    - GEO AI is your primary SEO plugin
+    - No other SEO plugins are active
+    - You want full control over SEO outputs
+    
+    ```php
+    update_option( 'geoai_compat_mode', 'standalone' );
+    ```
+  </Tab>
+
+  <Tab title="Coexist Mode">
+    GEO AI suppresses its meta tag and schema outputs when other SEO plugins are detected, allowing you to use GEO AI's AI analysis features while letting another plugin handle meta/schema.
+    
+    **Use when:**
+    - Running GEO AI alongside Yoast/Rank Math/etc.
+    - You want GEO AI's AI features but existing meta from other plugin
+    - Migrating between SEO plugins
+    
+    ```php
+    update_option( 'geoai_compat_mode', 'coexist' );
+    ```
+    
+    <Info>
+      In coexist mode, GEO AI's meta box still appears in the editor, but meta tags won't output on the frontend.
+    </Info>
+  </Tab>
+</Tabs>
+
+### Configure Mode
+
+**Via Settings:**
+
+1. Go to **Settings → GEO AI → General**
+2. Find "Compatibility Mode" dropdown
+3. Select **Standalone** or **Coexist**
+4. Save changes
+
+**Via Code:**
+
+```php
+// Set to coexist mode
+update_option( 'geoai_compat_mode', 'coexist' );
+
+// Set to standalone mode
+update_option( 'geoai_compat_mode', 'standalone' );
+```
+
+---
+
+## Suppression Mechanism
+
+When coexist mode is active and conflicts are detected, GEO AI removes its output hooks:
+
+```php
+public function init_compat_mode() {
+    $compat_mode = get_option( 'geoai_compat_mode', 'standalone' );
+
+    if ( 'coexist' === $compat_mode && ! empty( $this->detected_plugins ) ) {
+        // Lower priority to let other plugins output first
+        add_action( 'wp_head', array( $this, 'maybe_suppress_outputs' ), 999 );
+    }
+}
+
+public function maybe_suppress_outputs() {
+    if ( $this->has_existing_meta_tags() ) {
+        // Remove GEO AI's meta output hooks
+        remove_action( 'wp_head', 
+            array( \GeoAI\Core\GeoAI_Meta::get_instance(), 'output_meta_tags' ), 1 );
+        remove_action( 'wp_head', 
+            array( \GeoAI\Core\GeoAI_Social::get_instance(), 'output_og_tags' ), 1 );
+    }
+}
+```
+
+<Warning>
+  Suppression happens at priority 999 on `wp_head` to ensure other plugins output first.
+</Warning>
+
+---
+
+## What Gets Suppressed
+
+In **coexist mode**, GEO AI suppresses:
+
+<AccordionGroup>
+  <Accordion title="Meta Tags">
+    - `<title>` tag (if theme doesn't support `title-tag`)
+    - Meta description
+    - Meta keywords
+    - Canonical URL
+    - Robots meta (noindex, nofollow, etc.)
+    - Viewport and charset (if enabled)
+  </Accordion>
+
+  <Accordion title="Social Tags">
+    - Open Graph tags (og:title, og:description, og:image, etc.)
+    - Twitter Card tags (twitter:card, twitter:title, etc.)
+    - Facebook app ID
+  </Accordion>
+
+  <Accordion title="Schema Markup">
+    Not currently suppressed - you should disable schema in one plugin to avoid duplicates.
+    
+    <Tip>
+      Go to **Settings → GEO AI → Schema** and disable schema types if using another plugin's schema.
+    </Tip>
+  </Accordion>
+
+  <Accordion title="Sitemaps">
+    Not currently suppressed - disable sitemaps in one plugin.
+    
+    Most plugins use different sitemap URLs:
+    - GEO AI: `/sitemap.xml`
+    - Yoast: `/sitemap_index.xml`
+    - Rank Math: `/sitemap_index.xml`
+    - SEOPress: `/sitemaps/posts-post-1.xml`
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## What Still Works
+
+Even in **coexist mode**, these GEO AI features remain active:
+
+<CardGroup cols={2}>
+  <Card title="AI Analysis" icon="brain">
+    Google Gemini-powered audits continue to work
+  </Card>
+  <Card title="Editor Sidebar" icon="sidebar">
+    Gutenberg panel shows scores and recommendations
+  </Card>
+  <Card title="Analyzers" icon="chart-line">
+    All 5 analyzers (keyword, readability, etc.) function normally
+  </Card>
+  <Card title="WP-CLI" icon="terminal">
+    Command-line audits and reports
+  </Card>
+  <Card title="Dashboard" icon="gauge">
+    SEO health dashboard and statistics
+  </Card>
+  <Card title="Internal Linking" icon="link">
+    Suggestions for internal links
+  </Card>
+</CardGroup>
+
+---
+
+## Migration Workflow
+
+Migrating from another SEO plugin to GEO AI:
+
+<Steps>
+  <Step title="Install GEO AI">
+    Install and activate GEO AI while keeping your existing SEO plugin active.
+  </Step>
+
+  <Step title="Enable Coexist Mode">
+    Go to **Settings → GEO AI → General** and set compatibility mode to **Coexist**.
+    
+    This prevents duplicate meta tags during migration.
+  </Step>
+
+  <Step title="Import Settings (Optional)">
+    Go to **Settings → GEO AI → Tools → Import**.
+    
+    <Warning>
+      Import feature is planned for v1.1. Currently, you'll need to manually recreate settings.
+    </Warning>
+  </Step>
+
+  <Step title="Run Audits">
+    Use GEO AI's AI audits on your content to identify optimization opportunities.
+  </Step>
+
+  <Step title="Switch to Standalone">
+    Once you're ready to switch completely:
+    1. Change compatibility mode to **Standalone**
+    2. Deactivate the old SEO plugin
+    3. Clear cache (if using caching plugin)
+    4. Test meta tags with view-source or SEO browser extension
+  </Step>
+</Steps>
+
+---
+
+## Programmatic Access
+
+Check compatibility status in your code:
+
+```php
+$compat = \GeoAI\Core\GeoAI_Compat::get_instance();
+
+// Get list of detected plugins
+$conflicts = $compat->detect_conflicts();
+// Returns: array( 'Yoast SEO', 'Rank Math' )
+
+// Check if standalone mode
+if ( $compat->is_standalone_mode() ) {
+    // GEO AI is the primary SEO plugin
+}
+
+// Check if meta should be output
+if ( $compat->should_output_meta() ) {
+    // Safe to output meta tags
+}
+```
+
+---
+
+## Custom Plugin Detection
+
+Add support for custom or niche SEO plugins:
+
+```php
+add_filter( 'geoai_detected_conflicts', function( $conflicts ) {
+    // Detect Custom SEO Plugin
+    if ( defined( 'CUSTOM_SEO_VERSION' ) ) {
+        $conflicts[] = 'Custom SEO Plugin';
+    }
+    
+    // Detect another plugin by class
+    if ( class_exists( 'My_SEO_Class' ) ) {
+        $conflicts[] = 'My SEO Plugin';
+    }
+    
+    return $conflicts;
+});
+```
+
+---
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Duplicate meta tags appearing">
+    **Symptoms:** Multiple description tags, multiple og:title tags, etc.
+    
+    **Solution:**
+    1. Verify coexist mode is enabled: `get_option( 'geoai_compat_mode' )`
+    2. Check if plugin was detected: `GeoAI_Compat::get_instance()->detect_conflicts()`
+    3. Clear all caches (page cache, object cache, CDN)
+    4. View page source (not inspector) to confirm duplicates
+    
+    If still duplicated, manually disable meta output:
+    ```php
+    remove_action( 'wp_head', 
+        array( GeoAI\Core\GeoAI_Meta::get_instance(), 'output_meta_tags' ), 1 );
+    ```
+  </Accordion>
+
+  <Accordion title="GEO AI not detecting other plugin">
+    **Symptoms:** Other plugin is active but not in conflicts array
+    
+    **Solution:**
+    1. Check if plugin loads before GEO AI (use `plugins_loaded` priority)
+    2. Verify the constant/class the plugin defines
+    3. Add custom detection with `geoai_detected_conflicts` filter
+    4. Report unknown plugin to GEO AI support
+  </Accordion>
+
+  <Accordion title="Want to use GEO AI meta with other plugin's features">
+    **Symptoms:** Yoast active but want GEO AI to handle meta tags
+    
+    **Solution:**
+    1. Keep GEO AI in **standalone** mode
+    2. Disable meta output in the *other* plugin (Yoast, etc.)
+    3. Use other plugin's features (redirects, breadcrumbs, etc.) without meta conflict
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Known Limitations
+
+<Warning>
+  - **Schema suppression:** Currently manual - disable in one plugin's settings
+  - **Sitemap suppression:** Not automatic - configure sitemap URLs differently
+  - **Breadcrumbs:** Not suppressed - only use one plugin's breadcrumb output
+  - **Redirects:** Both plugins' redirects will work (may cause unexpected behavior)
+</Warning>
+
+---
+
+## Best Practices
+
+<Card title="Recommendations" icon="lightbulb">
+  1. **Use coexist mode temporarily** during migration, then switch to standalone
+  2. **Don't run multiple SEO plugins long-term** - choose one as primary
+  3. **Test meta tags** after switching modes (view-source, not DevTools)
+  4. **Clear all caches** when changing compatibility settings
+  5. **Monitor Search Console** for duplicate title/description issues
+  6. **Disable unused features** in both plugins to reduce overhead
+</Card>
+
+---
+
+## API Reference
+
+### Class: `GeoAI\Core\GeoAI_Compat`
+
+**Methods:**
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `get_instance()` | `GeoAI_Compat` | Singleton instance |
+| `detect_conflicts()` | `array` | List of detected plugin names |
+| `init_compat_mode()` | `void` | Initialize compatibility hooks |
+| `maybe_suppress_outputs()` | `void` | Remove meta output hooks if needed |
+| `is_standalone_mode()` | `bool` | Check if standalone mode active |
+| `should_output_meta()` | `bool` | Check if safe to output meta |
+
+**Hooks:**
+
+```php
+// Filter detected conflicts
+apply_filters( 'geoai_detected_conflicts', array $conflicts )
+```
+
+---
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="/getting-started/installation">
+    Install GEO AI alongside existing plugins
+  </Card>
+  <Card title="Settings" icon="gear" href="/features/settings">
+    Configure compatibility mode
+  </Card>
+  <Card title="Hooks & Filters" icon="filter" href="/advanced/hooks-filters">
+    Customize compatibility behavior
+  </Card>
+  <Card title="Migration Guide" icon="arrows-turn-to-dots" href="/guides/migration">
+    Step-by-step migration from other plugins
+  </Card>
+</CardGroup>

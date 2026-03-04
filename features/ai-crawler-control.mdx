@@ -1,0 +1,517 @@
+---
+title: AI Crawler Control
+description: Manage AI bot access with robots.txt suggestions and HTTP header snippets
+---
+
+## Overview
+
+**AI Crawler Control** helps you manage how AI-powered bots (PerplexityBot, GPTBot, CCBot, anthropic-ai) access your content. Generate robots.txt rules and HTTP header snippets to allow or block AI crawlers.
+
+<Warning>
+  Blocking AI crawlers prevents them from training on your content but also removes you from their answer engines. This is **not recommended** for most sites seeking AI visibility.
+</Warning>
+
+## Supported AI Crawlers
+
+<CardGroup cols={2}>
+  <Card title="PerplexityBot" icon="robot">
+    **Used by:** Perplexity AI
+    
+    Crawls content for Perplexity's answer engine
+  </Card>
+  
+  <Card title="GPTBot" icon="robot">
+    **Used by:** OpenAI (ChatGPT)
+    
+    Collects training data for GPT models
+  </Card>
+  
+  <Card title="CCBot" icon="robot">
+    **Used by:** Common Crawl
+    
+    Archives web content; used by multiple AI systems
+  </Card>
+  
+  <Card title="anthropic-ai" icon="robot">
+    **Used by:** Anthropic (Claude)
+    
+    Gathers data for Claude AI training
+  </Card>
+</CardGroup>
+
+## Configuration
+
+<Steps>
+  <Step title="Access Crawler Settings">
+    Navigate to **Settings → GEO AI → Crawlers & Robots**
+  </Step>
+  
+  <Step title="Select Bots to Block">
+    Check the boxes for AI crawlers you want to block:
+    - PerplexityBot
+    - GPTBot (ChatGPT)
+    - CCBot (Common Crawl)
+    - anthropic-ai
+  </Step>
+  
+  <Step title="View Generated Rules">
+    Scroll down to see the generated robots.txt rules
+  </Step>
+  
+  <Step title="Copy Rules">
+    Copy the suggested rules to your `robots.txt` file
+  </Step>
+</Steps>
+
+<Note>
+  GEO AI **does not write** to your robots.txt file automatically. You must manually add the rules to your server.
+</Note>
+
+## Implementation Details
+
+### Admin Interface
+
+```php title="includes/class-geoai-admin.php" showLineNumbers startLineNumber="792"
+private function render_crawlers_tab() {
+    $prefs = get_option( 'geoai_crawler_prefs', array() );
+    ?>
+    <h2><?php esc_html_e( 'AI Crawler Controls', 'geo-ai' ); ?></h2>
+    <p class="description">
+        <?php esc_html_e( 'These settings generate suggested robots.txt rules. Blocking is not guaranteed as crawlers may not respect these directives.', 'geo-ai' ); ?>
+    </p>
+    <table class="form-table">
+        <tr>
+            <th scope="row"><?php esc_html_e( 'Block Crawlers', 'geo-ai' ); ?></th>
+            <td>
+                <label>
+                    <input type="checkbox" name="geoai_crawler_prefs[block_perplexity]" value="1" 
+                           <?php checked( $prefs['block_perplexity'] ?? false, true ); ?> /> 
+                    PerplexityBot
+                </label><br/>
+                <label>
+                    <input type="checkbox" name="geoai_crawler_prefs[block_gptbot]" value="1" 
+                           <?php checked( $prefs['block_gptbot'] ?? false, true ); ?> /> 
+                    GPTBot (ChatGPT)
+                </label><br/>
+                <label>
+                    <input type="checkbox" name="geoai_crawler_prefs[block_ccbot]" value="1" 
+                           <?php checked( $prefs['block_ccbot'] ?? false, true ); ?> /> 
+                    CCBot (Common Crawl)
+                </label><br/>
+                <label>
+                    <input type="checkbox" name="geoai_crawler_prefs[block_anthropic]" value="1" 
+                           <?php checked( $prefs['block_anthropic'] ?? false, true ); ?> /> 
+                    anthropic-ai
+                </label>
+            </td>
+        </tr>
+    </table>
+    <?php $this->render_robots_preview( $prefs ); ?>
+    <?php
+}
+```
+
+### Robots.txt Preview Generation
+
+```php title="includes/class-geoai-admin.php" showLineNumbers startLineNumber="812"
+private function render_robots_preview( $prefs ) {
+    $rules = array();
+    if ( ! empty( $prefs['block_perplexity'] ) ) {
+        $rules[] = "User-agent: PerplexityBot\nDisallow: /";
+    }
+    if ( ! empty( $prefs['block_gptbot'] ) ) {
+        $rules[] = "User-agent: GPTBot\nDisallow: /";
+    }
+    if ( ! empty( $prefs['block_ccbot'] ) ) {
+        $rules[] = "User-agent: CCBot\nDisallow: /";
+    }
+    if ( ! empty( $prefs['block_anthropic'] ) ) {
+        $rules[] = "User-agent: anthropic-ai\nDisallow: /";
+    }
+
+    if ( ! empty( $rules ) ) {
+        ?>
+        <h3><?php esc_html_e( 'Suggested robots.txt Rules', 'geo-ai' ); ?></h3>
+        <textarea readonly rows="10" class="large-text code">
+            <?php echo esc_textarea( implode( "\n\n", $rules ) ); ?>
+        </textarea>
+        <p class="description">
+            <?php esc_html_e( 'Copy these rules to your robots.txt file. GEO AI does not write server files.', 'geo-ai' ); ?>
+        </p>
+        <?php
+    }
+}
+```
+
+## Generated Rules Example
+
+When blocking all AI crawlers, GEO AI generates:
+
+```text title="robots.txt"
+User-agent: PerplexityBot
+Disallow: /
+
+User-agent: GPTBot
+Disallow: /
+
+User-agent: CCBot
+Disallow: /
+
+User-agent: anthropic-ai
+Disallow: /
+```
+
+## Adding Rules to robots.txt
+
+<Tabs>
+  <Tab title="Manual Edit">
+    <Steps>
+      <Step title="Access robots.txt">
+        Connect to your server via FTP or file manager
+      </Step>
+      
+      <Step title="Locate File">
+        Find `robots.txt` in your WordPress root directory (same level as `wp-config.php`)
+      </Step>
+      
+      <Step title="Edit File">
+        Open `robots.txt` in a text editor
+      </Step>
+      
+      <Step title="Paste Rules">
+        Add the generated rules from GEO AI settings
+      </Step>
+      
+      <Step title="Save">
+        Save the file and upload if using FTP
+      </Step>
+      
+      <Step title="Test">
+        Visit `https://yoursite.com/robots.txt` to verify
+      </Step>
+    </Steps>
+  </Tab>
+  
+  <Tab title="WordPress Plugin">
+    If using a robots.txt plugin like Yoast SEO:
+    
+    <Steps>
+      <Step title="Go to Plugin Settings">
+        Navigate to your SEO plugin's robots.txt editor
+      </Step>
+      
+      <Step title="Add Rules">
+        Paste the generated rules into the custom robots.txt section
+      </Step>
+      
+      <Step title="Save">
+        Save changes in the plugin
+      </Step>
+    </Steps>
+  </Tab>
+  
+  <Tab title="Create New File">
+    If `robots.txt` doesn't exist:
+    
+    ```text title="robots.txt"
+    # Standard WordPress robots.txt
+    User-agent: *
+    Disallow: /wp-admin/
+    Allow: /wp-admin/admin-ajax.php
+    
+    # Block AI Crawlers (from GEO AI)
+    User-agent: PerplexityBot
+    Disallow: /
+    
+    User-agent: GPTBot
+    Disallow: /
+    
+    User-agent: CCBot
+    Disallow: /
+    
+    User-agent: anthropic-ai
+    Disallow: /
+    
+    # Sitemap
+    Sitemap: https://yoursite.com/sitemap.xml
+    ```
+    
+    Upload to WordPress root directory.
+  </Tab>
+</Tabs>
+
+## Selective Blocking
+
+Block crawlers from specific sections only:
+
+```text title="robots.txt"
+# Block AI bots from premium content only
+User-agent: PerplexityBot
+Disallow: /members/
+Disallow: /premium/
+
+User-agent: GPTBot
+Disallow: /members/
+Disallow: /premium/
+
+# Allow AI bots on blog for visibility
+User-agent: PerplexityBot
+Allow: /blog/
+
+User-agent: GPTBot
+Allow: /blog/
+```
+
+## HTTP Headers (Advanced)
+
+For more control, block AI crawlers with HTTP headers:
+
+<Tabs>
+  <Tab title="Apache (.htaccess)">
+    ```apache title=".htaccess"
+    # Block AI crawlers via HTTP headers
+    <IfModule mod_setenvif.c>
+        SetEnvIfNoCase User-Agent "PerplexityBot" block_bot
+        SetEnvIfNoCase User-Agent "GPTBot" block_bot
+        SetEnvIfNoCase User-Agent "CCBot" block_bot
+        SetEnvIfNoCase User-Agent "anthropic-ai" block_bot
+    </IfModule>
+    
+    <IfModule mod_rewrite.c>
+        RewriteCond %{ENV:block_bot} ^1$
+        RewriteRule .* - [F,L]
+    </IfModule>
+    ```
+  </Tab>
+  
+  <Tab title="Nginx">
+    ```nginx title="nginx.conf"
+    # Block AI crawlers
+    if ($http_user_agent ~* "PerplexityBot|GPTBot|CCBot|anthropic-ai") {
+        return 403;
+    }
+    ```
+  </Tab>
+  
+  <Tab title="PHP (functions.php)">
+    ```php title="functions.php"
+    add_action('init', 'block_ai_crawlers');
+    
+    function block_ai_crawlers() {
+        $user_agent = $_SERVER['HTTP_USER_AGENT'] ?? '';
+        
+        $blocked_bots = [
+            'PerplexityBot',
+            'GPTBot',
+            'CCBot',
+            'anthropic-ai',
+        ];
+        
+        foreach ($blocked_bots as $bot) {
+            if (stripos($user_agent, $bot) !== false) {
+                header('HTTP/1.1 403 Forbidden');
+                exit('AI crawler blocked');
+            }
+        }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Verification
+
+Verify your robots.txt is working:
+
+<Steps>
+  <Step title="Visit robots.txt">
+    Go to `https://yoursite.com/robots.txt` in a browser
+  </Step>
+  
+  <Step title="Check Rules">
+    Verify your AI crawler rules appear correctly
+  </Step>
+  
+  <Step title="Test with Google">
+    Use [Google Search Console Robots Testing Tool](https://search.google.com/search-console/robots-txt) to validate syntax
+  </Step>
+  
+  <Step title="Monitor Logs">
+    Check server logs for blocked crawler requests (optional)
+  </Step>
+</Steps>
+
+## Important Caveats
+
+<Warning>
+  **Critical:** AI crawlers may NOT respect robots.txt directives. Blocking is a request, not enforcement.
+</Warning>
+
+<CardGroup cols={2}>
+  <Card title="Not Guaranteed" icon="shield-xmark">
+    Crawlers can ignore robots.txt. Only honest bots comply.
+  </Card>
+  
+  <Card title="Reduces AI Visibility" icon="eye-slash">
+    Blocking prevents your content from appearing in AI answer engines.
+  </Card>
+  
+  <Card title="May Not Stop Training" icon="database">
+    Some AI models may already have your content from past crawls.
+  </Card>
+  
+  <Card title="No Legal Protection" icon="scale-unbalanced">
+    robots.txt is a suggestion, not a legally binding restriction.
+  </Card>
+</CardGroup>
+
+## When to Block AI Crawlers
+
+<AccordionGroup>
+  <Accordion title="Premium/Paywalled Content">
+    **Consider blocking** AI crawlers from accessing content behind paywalls or membership areas.
+    
+    ```text
+    User-agent: GPTBot
+    Disallow: /members/
+    Disallow: /premium/
+    ```
+  </Accordion>
+  
+  <Accordion title="Proprietary Research/Data">
+    **Consider blocking** if you have unique research or data you don't want in AI training sets.
+  </Accordion>
+  
+  <Accordion title="E-commerce Product Descriptions">
+    **Consider blocking** to prevent AI from generating competing product descriptions.
+  </Accordion>
+  
+  <Accordion title="Legal/Compliance Requirements">
+    **Block if required** by industry regulations or contractual obligations.
+  </Accordion>
+</AccordionGroup>
+
+## When to Allow AI Crawlers
+
+<CardGroup cols={2}>
+  <Card title="Marketing Content" icon="bullhorn">
+    Allow crawlers to increase visibility in AI answer engines.
+  </Card>
+  
+  <Card title="Blog Posts" icon="newspaper">
+    Get free exposure through AI-powered search results.
+  </Card>
+  
+  <Card title="Educational Content" icon="graduation-cap">
+    Help AI systems provide accurate information.
+  </Card>
+  
+  <Card title="Public Information" icon="earth">
+    Content meant to be widely accessible benefits from AI indexing.
+  </Card>
+</CardGroup>
+
+## Alternative Approaches
+
+### AI-TXT Standard
+
+Some organizations are developing `ai.txt` specification:
+
+```text title="ai.txt"
+# Allow AI training and indexing
+User-agent: *
+Allow: /
+
+# Exceptions
+Disallow: /private/
+Disallow: /members/
+
+# Attribution
+Contact: seo@example.com
+Terms: https://example.com/ai-usage-terms
+```
+
+<Note>
+  `ai.txt` is not yet a widely adopted standard. Most crawlers still use robots.txt.
+</Note>
+
+## Monitoring Crawler Activity
+
+Track AI crawler visits in server logs:
+
+```bash
+# Apache access.log
+grep -i "perplexitybot\|gptbot\|ccbot\|anthropic-ai" /var/log/apache2/access.log
+
+# Count by bot
+grep -i "perplexitybot" /var/log/apache2/access.log | wc -l
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Default: Allow" icon="check">
+    Unless you have specific reasons, allow AI crawlers for better visibility.
+  </Card>
+  
+  <Card title="Be Selective" icon="filter">
+    Block crawlers only from sensitive sections, not entire site.
+  </Card>
+  
+  <Card title="Monitor Impact" icon="chart-line">
+    Track referral traffic from AI engines before/after blocking.
+  </Card>
+  
+  <Card title="Understand Limitations" icon="lightbulb">
+    Remember robots.txt is advisory, not enforceable.
+  </Card>
+  
+  <Card title="Document Decisions" icon="file-lines">
+    Keep notes on why you blocked certain crawlers.
+  </Card>
+  
+  <Card title="Review Regularly" icon="rotate">
+    Re-evaluate your blocking strategy quarterly.
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Rules not working">
+    **Check:**
+    - Rules are correctly added to `robots.txt` in root directory
+    - Syntax is correct (case-sensitive user-agent names)
+    - File is accessible at `yoursite.com/robots.txt`
+    - No caching plugin serving old robots.txt
+  </Accordion>
+  
+  <Accordion title="Crawlers still visiting">
+    **Remember:**
+    - Crawlers may ignore robots.txt (not enforceable)
+    - Check user agent string in logs to confirm bot identity
+    - Consider HTTP header blocking for stricter control
+  </Accordion>
+  
+  <Accordion title="robots.txt not found">
+    **Solution:**
+    - Create `robots.txt` file in WordPress root directory
+    - Ensure file has correct permissions (644)
+    - Clear any caching plugins
+  </Accordion>
+</AccordionGroup>
+
+## Related Features
+
+<CardGroup cols={3}>
+  <Card title="AI Audit" icon="robot" href="./ai-audit">
+    Optimize content for AI visibility
+  </Card>
+  
+  <Card title="Sitemaps" icon="sitemap" href="./sitemaps">
+    Help crawlers find your content
+  </Card>
+  
+  <Card title="Meta Tags" icon="heading" href="./meta-titles">
+    Robots meta for indexing control
+  </Card>
+</CardGroup>

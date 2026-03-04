@@ -1,0 +1,434 @@
+---
+title: Schema Markup
+description: Automatic JSON-LD schema.org structured data output for enhanced search visibility
+---
+
+## Overview
+
+GEO AI automatically generates **Schema.org JSON-LD** markup to help search engines and AI answer engines understand your content structure. Supports Article, Organization, WebSite, SearchAction, and more.
+
+<Info>
+  Schema markup can increase click-through rates by 30% by enabling rich snippets in search results.
+</Info>
+
+## Supported Schema Types
+
+<CardGroup cols={2}>
+  <Card title="Article Schema" icon="newspaper">
+    Automatically added to single posts. Includes headline, author, publish date, modified date, and publisher information.
+  </Card>
+  
+  <Card title="Organization Schema" icon="building">
+    Appears on homepage. Defines your site as an organization with name, URL, and logo.
+  </Card>
+  
+  <Card title="WebSite Schema" icon="globe">
+    Added to homepage with SearchAction for sitewide search functionality.
+  </Card>
+  
+  <Card title="BreadcrumbList Schema" icon="map-signs">
+    Generated automatically by the breadcrumbs feature for navigation context.
+  </Card>
+</CardGroup>
+
+## Configuration
+
+<Steps>
+  <Step title="Access Schema Settings">
+    Navigate to **Settings → GEO AI → Schema**
+  </Step>
+  
+  <Step title="Enable Schema Types">
+    Check the schema types you want to enable:
+    - Article (for blog posts)
+    - FAQ Page
+    - HowTo
+    - Organization
+    - WebSite + SearchAction
+  </Step>
+  
+  <Step title="Save Changes">
+    Click **Save Changes** to activate schema output
+  </Step>
+</Steps>
+
+## Implementation Details
+
+### Core Schema Class
+
+```php title="includes/class-geoai-schema.php" showLineNumbers
+class GeoAI_Schema {
+    private static $instance = null;
+
+    public static function get_instance() {
+        if ( null === self::$instance ) {
+            self::$instance = new self();
+        }
+        return self::$instance;
+    }
+
+    private function __construct() {
+        add_action( 'wp_head', array( $this, 'output_schema' ), 2 );
+    }
+
+    public function output_schema() {
+        if ( ! GeoAI_Compat::get_instance()->should_output_meta() ) {
+            return;
+        }
+
+        $defaults = get_option( 'geoai_schema_defaults', array() );
+        $schema   = array();
+
+        if ( is_front_page() && ! empty( $defaults['website'] ) ) {
+            $schema[] = $this->get_website_schema();
+        }
+
+        if ( is_front_page() && ! empty( $defaults['organization'] ) ) {
+            $schema[] = $this->get_organization_schema();
+        }
+
+        if ( is_singular( 'post' ) && ! empty( $defaults['article'] ) ) {
+            $schema[] = $this->get_article_schema();
+        }
+
+        $schema = apply_filters( 'geoai_schema_output', $schema );
+
+        if ( ! empty( $schema ) ) {
+            echo '<script type="application/ld+json">' . "\n";
+            echo wp_json_encode( 
+                array( '@context' => 'https://schema.org', '@graph' => $schema ), 
+                JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT 
+            );
+            echo "\n" . '</script>' . "\n";
+        }
+    }
+}
+```
+
+### WebSite Schema with SearchAction
+
+```php title="includes/class-geoai-schema.php" showLineNumbers startLineNumber="60"
+private function get_website_schema() {
+    return array(
+        '@type'         => 'WebSite',
+        '@id'           => home_url( '/#website' ),
+        'url'           => home_url( '/' ),
+        'name'          => get_bloginfo( 'name' ),
+        'description'   => get_bloginfo( 'description' ),
+        'potentialAction' => array(
+            '@type'       => 'SearchAction',
+            'target'      => array(
+                '@type'       => 'EntryPoint',
+                'urlTemplate' => home_url( '/?s={search_term_string}' ),
+            ),
+            'query-input' => 'required name=search_term_string',
+        ),
+    );
+}
+```
+
+### Organization Schema
+
+```php title="includes/class-geoai-schema.php" showLineNumbers startLineNumber="78"
+private function get_organization_schema() {
+    return array(
+        '@type' => 'Organization',
+        '@id'   => home_url( '/#organization' ),
+        'name'  => get_bloginfo( 'name' ),
+        'url'   => home_url( '/' ),
+    );
+}
+```
+
+### Article Schema
+
+```php title="includes/class-geoai-schema.php" showLineNumbers startLineNumber="87"
+private function get_article_schema() {
+    $post = get_post();
+    
+    return array(
+        '@type'            => 'Article',
+        '@id'              => get_permalink() . '#article',
+        'headline'         => get_the_title(),
+        'description'      => wp_trim_words( get_the_excerpt(), 30 ),
+        'datePublished'    => get_the_date( 'c' ),
+        'dateModified'     => get_the_modified_date( 'c' ),
+        'author'           => array(
+            '@type' => 'Person',
+            'name'  => get_the_author(),
+        ),
+        'publisher'        => array(
+            '@type' => 'Organization',
+            'name'  => get_bloginfo( 'name' ),
+        ),
+        'mainEntityOfPage' => array(
+            '@type' => 'WebPage',
+            '@id'   => get_permalink(),
+        ),
+    );
+}
+```
+
+## Schema Output Example
+
+For a blog post, GEO AI outputs:
+
+```json
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Article",
+      "@id": "https://example.com/my-post/#article",
+      "headline": "How to Optimize WordPress for AI Search",
+      "description": "Learn proven strategies to optimize your WordPress site for AI-powered search engines including Google AI Overviews and Perplexity.",
+      "datePublished": "2025-03-01T10:00:00+00:00",
+      "dateModified": "2025-03-04T15:30:00+00:00",
+      "author": {
+        "@type": "Person",
+        "name": "John Doe"
+      },
+      "publisher": {
+        "@type": "Organization",
+        "name": "My WordPress Site"
+      },
+      "mainEntityOfPage": {
+        "@type": "WebPage",
+        "@id": "https://example.com/my-post/"
+      }
+    }
+  ]
+}
+</script>
+```
+
+## Extending Schema Output
+
+Add custom schema types using the filter:
+
+```php
+add_filter( 'geoai_schema_output', 'add_custom_schema' );
+
+function add_custom_schema( $schema ) {
+    if ( is_singular( 'product' ) ) {
+        $schema[] = array(
+            '@type' => 'Product',
+            '@id'   => get_permalink() . '#product',
+            'name'  => get_the_title(),
+            'description' => get_the_excerpt(),
+            'offers' => array(
+                '@type' => 'Offer',
+                'price' => get_post_meta( get_the_ID(), '_price', true ),
+                'priceCurrency' => 'USD',
+                'availability' => 'https://schema.org/InStock',
+            ),
+        );
+    }
+    
+    return $schema;
+}
+```
+
+## Compatibility Mode
+
+<Warning>
+  If using another SEO plugin (Yoast, Rank Math, SEOPress), enable **Coexist Mode** to prevent duplicate schema output.
+</Warning>
+
+### Enabling Coexist Mode
+
+<Steps>
+  <Step title="Go to Settings">
+    Navigate to **Settings → GEO AI → General**
+  </Step>
+  
+  <Step title="Set Compatibility Mode">
+    Select **"Coexist (Suppress Overlapping Outputs)"**
+  </Step>
+  
+  <Step title="Save">
+    Click **Save Changes**
+  </Step>
+</Steps>
+
+When coexist mode is active:
+- GEO AI detects other SEO plugins
+- Suppresses its own schema output if conflicts exist
+- Preserves AI-specific features (audits, Answer Cards)
+
+## Validation
+
+Validate your schema markup:
+
+<CardGroup cols={2}>
+  <Card title="Google Rich Results Test" icon="google" href="https://search.google.com/test/rich-results">
+    Test how Google sees your structured data
+  </Card>
+  
+  <Card title="Schema.org Validator" icon="check-circle" href="https://validator.schema.org/">
+    Validate against official schema.org specs
+  </Card>
+</CardGroup>
+
+<Steps>
+  <Step title="Copy Page URL">
+    Get the full URL of any published page or post
+  </Step>
+  
+  <Step title="Test with Google">
+    Paste into [Google Rich Results Test](https://search.google.com/test/rich-results)
+  </Step>
+  
+  <Step title="Review Results">
+    Check for errors or warnings and fix any issues
+  </Step>
+  
+  <Step title="Validate Schema">
+    Use [Schema.org Validator](https://validator.schema.org/) for additional checks
+  </Step>
+</Steps>
+
+## Common Schema Types
+
+<AccordionGroup>
+  <Accordion title="Article Schema">
+    **Use for:** Blog posts, news articles, editorial content
+    
+    **Required properties:**
+    - headline
+    - datePublished
+    - author
+    - publisher
+    
+    **Enables:** Article rich snippets in search results
+  </Accordion>
+  
+  <Accordion title="FAQ Schema">
+    **Use for:** Pages with frequently asked questions
+    
+    **Required properties:**
+    - mainEntity (array of Question/Answer pairs)
+    
+    **Enables:** Expandable FAQ dropdowns in search results
+    
+    **Status:** Planned for v1.2
+  </Accordion>
+  
+  <Accordion title="HowTo Schema">
+    **Use for:** Step-by-step guides and tutorials
+    
+    **Required properties:**
+    - name
+    - step (array of HowToStep)
+    
+    **Enables:** Rich step-by-step snippets with images
+    
+    **Status:** Planned for v1.2
+  </Accordion>
+  
+  <Accordion title="Product Schema">
+    **Use for:** E-commerce product pages
+    
+    **Required properties:**
+    - name
+    - image
+    - offers (price, availability)
+    
+    **Enables:** Product rich snippets with pricing and ratings
+    
+    **Status:** Planned for v1.2
+  </Accordion>
+  
+  <Accordion title="LocalBusiness Schema">
+    **Use for:** Local business websites
+    
+    **Required properties:**
+    - name
+    - address
+    - telephone
+    
+    **Enables:** Local business knowledge panels
+    
+    **Status:** Planned for v1.2
+  </Accordion>
+</AccordionGroup>
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Use Specific Types" icon="bullseye">
+    Use the most specific schema type available. "Article" is better than generic "CreativeWork".
+  </Card>
+  
+  <Card title="Complete All Required Properties" icon="check-square">
+    Fill in all required properties for your schema type to ensure valid markup.
+  </Card>
+  
+  <Card title="Include Images" icon="image">
+    Add featured images to posts. Schema can include image URLs for better rich results.
+  </Card>
+  
+  <Card title="Keep Dates Accurate" icon="calendar">
+    Update modified dates when making significant content changes.
+  </Card>
+  
+  <Card title="Avoid Spam" icon="ban">
+    Don't add irrelevant schema types or false information. Google may penalize spam.
+  </Card>
+  
+  <Card title="Test Regularly" icon="vial">
+    Validate schema after theme changes or plugin updates.
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Schema not appearing">
+    **Check:**
+    - Schema types are enabled in Settings → Schema
+    - Compatibility mode is configured correctly
+    - View page source to verify `<script type="application/ld+json">` is present
+  </Accordion>
+  
+  <Accordion title="Duplicate schema">
+    **Cause:** Multiple SEO plugins outputting schema
+    
+    **Solution:** Enable Coexist Mode or disable schema in other plugins
+  </Accordion>
+  
+  <Accordion title="Validation errors">
+    **Common issues:**
+    - Missing required properties (headline, datePublished)
+    - Invalid date formats (use ISO 8601)
+    - Missing publisher information
+    
+    **Solution:** Use Google Rich Results Test to identify specific errors
+  </Accordion>
+  
+  <Accordion title="Schema not showing in search">
+    **Note:** Google decides whether to show rich results
+    
+    **Factors:**
+    - Valid schema is required but not guaranteed
+    - Content quality matters
+    - May take 2-4 weeks for Google to process
+  </Accordion>
+</AccordionGroup>
+
+## Related Features
+
+<CardGroup cols={3}>
+  <Card title="Breadcrumbs" icon="map-signs" href="./breadcrumbs">
+    Add BreadcrumbList schema
+  </Card>
+  
+  <Card title="AI Audit" icon="robot" href="./ai-audit">
+    Schema validation in audits
+  </Card>
+  
+  <Card title="Social Cards" icon="share-nodes" href="./social-cards">
+    OpenGraph structured data
+  </Card>
+</CardGroup>

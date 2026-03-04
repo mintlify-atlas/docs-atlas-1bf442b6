@@ -1,0 +1,215 @@
+---
+title: Keyword Analyzer
+description: Analyzes content for focus keyword optimization
+---
+
+## Overview
+
+The `Keyword_Analyzer` class analyzes content for focus keyword optimization, checking keyword placement, density, and distribution throughout the content. It provides a comprehensive scoring system based on SEO best practices.
+
+**Namespace:** `GeoAI\Analyzers`
+
+**File:** `includes/analyzers/class-keyword-analyzer.php`
+
+## Purpose
+
+The Keyword Analyzer evaluates how well a focus keyword is optimized within content by checking:
+
+- Keyword presence in title, meta description, URL slug, and first paragraph
+- Keyword density (ideal range: 0.5% - 2.5%)
+- Keyword distribution across content sections
+- Position of keyword within title (bonus for early placement)
+
+## Scoring Algorithm
+
+The analyzer uses a weighted scoring system with a maximum of 100 points:
+
+| Component | Points | Description |
+|-----------|--------|-------------|
+| Keyword in Title | 20 | Full points if in title, bonus if at beginning |
+| Keyword in Meta Description | 15 | Checks meta description for keyword presence |
+| Keyword in URL Slug | 10 | Validates keyword in post slug |
+| Keyword in First Paragraph | 15 | Ensures keyword appears early in content |
+| Keyword Density | 20 | Optimal range: 0.5% - 2.5% |
+| Keyword Distribution | 20 | Checks presence across 3 content sections |
+
+### Density Thresholds
+
+- **< 0.3%**: Too low (5 points, warning)
+- **0.3% - 3.0%**: Optimal (20 points)
+- **> 3.0%**: Too high, keyword stuffing (5 points, error)
+
+## Public Methods
+
+### analyze()
+
+Analyzes content for focus keyword optimization.
+
+<ParamField path="keyword" type="string" required>
+  The focus keyword to analyze
+</ParamField>
+
+<ParamField path="data" type="array" required>
+  Content data array containing:
+  
+  - `title` (string): Post title
+  - `content` (string): Post content
+  - `excerpt` (string): Post excerpt
+  - `slug` (string): Post URL slug
+  - `meta_description` (string): Meta description
+</ParamField>
+
+**Returns:** `array` - Analysis results
+
+**Return Structure:**
+
+```php
+array(
+    'score'       => int,    // Overall score 0-100
+    'issues'      => array,  // Array of issue objects
+    'keyword'     => string, // Normalized keyword
+    'density'     => float,  // Keyword density percentage
+    'occurrences' => int     // Total keyword count
+)
+```
+
+**Issue Object Structure:**
+
+```php
+array(
+    'id'       => string, // Unique issue identifier
+    'severity' => string, // 'error', 'warning', 'ok', or 'good'
+    'message'  => string  // Localized message
+)
+```
+
+## Usage Examples
+
+### Basic Analysis
+
+```php
+use GeoAI\Analyzers\Keyword_Analyzer;
+
+$analyzer = new Keyword_Analyzer();
+
+$data = array(
+    'title'            => 'Best SEO Practices for WordPress',
+    'content'          => $post_content,
+    'slug'             => 'seo-practices-wordpress',
+    'meta_description' => 'Learn the best SEO practices for WordPress sites',
+    'excerpt'          => ''
+);
+
+$result = $analyzer->analyze( 'wordpress seo', $data );
+
+if ( $result['score'] >= 80 ) {
+    echo 'Excellent keyword optimization!';
+} elseif ( $result['score'] >= 60 ) {
+    echo 'Good keyword optimization';
+} else {
+    echo 'Needs improvement';
+}
+```
+
+### Displaying Issues
+
+```php
+$result = $analyzer->analyze( $keyword, $data );
+
+foreach ( $result['issues'] as $issue ) {
+    $class = 'seo-' . $issue['severity'];
+    echo "<div class='{$class}'>{$issue['message']}</div>";
+}
+
+echo "<p>Keyword density: {$result['density']}%</p>";
+echo "<p>Keyword appears {$result['occurrences']} times</p>";
+```
+
+### Checking Specific Criteria
+
+```php
+$result = $analyzer->analyze( 'wordpress', $data );
+
+// Find specific issues
+foreach ( $result['issues'] as $issue ) {
+    switch ( $issue['id'] ) {
+        case 'keyword_not_in_title':
+            // Suggest adding keyword to title
+            break;
+        case 'keyword_density_low':
+            // Suggest adding more keyword mentions
+            break;
+        case 'keyword_density_high':
+            // Warn about keyword stuffing
+            break;
+    }
+}
+```
+
+### Integration in Post Editor
+
+```php
+function check_keyword_optimization( $post_id ) {
+    $post = get_post( $post_id );
+    $keyword = get_post_meta( $post_id, '_focus_keyword', true );
+    
+    if ( empty( $keyword ) ) {
+        return;
+    }
+    
+    $analyzer = new Keyword_Analyzer();
+    
+    $data = array(
+        'title'            => $post->post_title,
+        'content'          => $post->post_content,
+        'slug'             => $post->post_name,
+        'meta_description' => get_post_meta( $post_id, '_meta_description', true ),
+        'excerpt'          => $post->post_excerpt,
+    );
+    
+    $result = $analyzer->analyze( $keyword, $data );
+    
+    // Save score for dashboard
+    update_post_meta( $post_id, '_keyword_score', $result['score'] );
+    update_post_meta( $post_id, '_keyword_density', $result['density'] );
+    
+    return $result;
+}
+```
+
+## Issue IDs Reference
+
+| Issue ID | Severity | Description |
+|----------|----------|-------------|
+| `no_keyword` | error | No focus keyword provided |
+| `keyword_not_in_title` | error | Keyword missing from title |
+| `keyword_in_title` | good | Keyword found in title |
+| `keyword_in_title_start` | good | Keyword at beginning of title |
+| `no_meta_description` | warning | No meta description set |
+| `keyword_not_in_meta` | warning | Keyword not in meta description |
+| `keyword_in_meta` | good | Keyword in meta description |
+| `keyword_not_in_slug` | warning | Keyword not in URL slug |
+| `keyword_in_slug` | good | Keyword in URL slug |
+| `keyword_not_in_first_para` | warning | Keyword not in first paragraph |
+| `keyword_in_first_para` | good | Keyword in first paragraph |
+| `keyword_density_low` | warning | Density < 0.3% |
+| `keyword_density_good` | good | Density 0.3% - 3.0% |
+| `keyword_density_high` | error | Density > 3.0% |
+| `keyword_not_distributed` | error | Keyword not found in content |
+| `keyword_poorly_distributed` | warning | Keyword in 1 of 3 sections |
+| `keyword_fairly_distributed` | ok | Keyword in 2 of 3 sections |
+| `keyword_well_distributed` | good | Keyword in all 3 sections |
+
+## Best Practices
+
+1. **Title Optimization**: Place keyword at the beginning of titles for maximum impact (20 points vs 15 points)
+2. **Density Range**: Aim for 0.5% - 2.5% keyword density to avoid penalties
+3. **Natural Distribution**: Ensure keyword appears throughout content, not just in one section
+4. **Avoid Keyword Stuffing**: Density above 3.0% may be flagged as spam
+5. **First Paragraph**: Include keyword early to establish topic relevance
+
+## Related
+
+- [Readability Analyzer](/api/analyzers/readability)
+- [Content Insights](/api/analyzers/content-insights)
+- [SEO Dashboard](/api/analyzers/seo-dashboard)

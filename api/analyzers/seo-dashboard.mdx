@@ -1,0 +1,449 @@
+---
+title: SEO Dashboard
+description: Provides site-wide SEO health analysis and statistics
+---
+
+## Overview
+
+The `SEO_Dashboard` class provides comprehensive site-wide SEO analysis, tracking issues, scoring content, and generating recommendations across all published posts and pages. It includes intelligent caching for performance.
+
+**Namespace:** `GeoAI\Analyzers`
+
+**File:** `includes/analyzers/class-seo-dashboard.php`
+
+## Purpose
+
+The SEO Dashboard provides:
+
+- **Overall SEO Score**: Site-wide health metric (0-100)
+- **Issue Tracking**: Identifies and categorizes SEO problems
+- **Content Statistics**: Metrics about published content
+- **Score Distribution**: Visual breakdown by score ranges
+- **Top Performers**: Best-optimized content
+- **Needs Attention**: Low-scoring content requiring fixes
+- **Recent Activity**: Latest analyzed posts
+- **Smart Recommendations**: Actionable improvement suggestions
+
+## Public Methods
+
+### __construct()
+
+Constructor that hooks into WordPress actions for automatic cache invalidation.
+
+**Hooks:**
+- `save_post` - Clears cache when posts are saved
+- `delete_post` - Clears cache when posts are deleted
+
+### get_dashboard_data()
+
+Returns comprehensive site-wide SEO health data with automatic caching.
+
+**Returns:** `array` - Dashboard data
+
+**Cache:** 5 minutes (transient: `geoai_dashboard_data`)
+
+**Return Structure:**
+
+```php
+array(
+    'overall_score'      => int,    // 0-100 site score
+    'issues'             => array,  // Site-wide issues
+    'post_stats'         => array,  // Content statistics
+    'recommendations'    => array,  // Improvement suggestions
+    'score_distribution' => array,  // Score ranges breakdown
+    'recent_activity'    => array,  // Last 5 analyzed posts
+    'top_performers'     => array,  // Top 5 best posts
+    'needs_attention'    => array   // Bottom 5 posts
+)
+```
+
+### clear_cache()
+
+Manually clears the dashboard cache. Called automatically on post save/delete.
+
+**Returns:** `void`
+
+## Data Structures
+
+### Overall Score
+
+Starts at 100 and deducts points based on issue severity:
+
+- **Critical**: -15 points each
+- **High**: -10 points each
+- **Medium**: -5 points each
+- **Low**: -2 points each
+
+Minimum score: 0
+
+### Issues Array
+
+Each issue object:
+
+```php
+array(
+    'id'       => 'posts_no_meta',              // Issue identifier
+    'severity' => 'high',                        // critical|high|medium|low
+    'count'    => 15,                           // Number of affected posts
+    'message'  => '15 posts are missing...',    // Localized message
+    'action'   => 'admin.php?page=...'          // Optional action URL
+)
+```
+
+### Post Statistics
+
+```php
+array(
+    'total_posts'        => 250,  // Total published posts/pages
+    'with_meta'          => 200,  // Posts with meta descriptions
+    'with_keyword'       => 180,  // Posts with focus keywords
+    'meta_percentage'    => 80,   // Percentage with meta
+    'keyword_percentage' => 72    // Percentage with keywords
+)
+```
+
+### Score Distribution
+
+```php
+array(
+    'excellent' => array(
+        'min'         => 80,
+        'max'         => 100,
+        'keyword'     => 45,   // Posts in this range
+        'readability' => 38
+    ),
+    'good' => array(
+        'min'         => 60,
+        'max'         => 79,
+        'keyword'     => 80,
+        'readability' => 95
+    ),
+    'fair' => array(
+        'min'         => 40,
+        'max'         => 59,
+        'keyword'     => 30,
+        'readability' => 40
+    ),
+    'poor' => array(
+        'min'         => 0,
+        'max'         => 39,
+        'keyword'     => 15,
+        'readability' => 12
+    )
+)
+```
+
+### Recommendations
+
+```php
+array(
+    array(
+        'title'   => 'Add Meta Descriptions',
+        'message' => 'Meta descriptions improve click-through rates...',
+        'action'  => 'admin.php?page=geoai-bulk-editor'
+    ),
+    // ... more recommendations
+)
+```
+
+## Usage Examples
+
+### Basic Dashboard Display
+
+```php
+use GeoAI\Analyzers\SEO_Dashboard;
+
+$dashboard = new SEO_Dashboard();
+$data = $dashboard->get_dashboard_data();
+
+echo '<div class="seo-dashboard">';
+echo '<h2>SEO Health Score: ' . $data['overall_score'] . '/100</h2>';
+
+if ( $data['overall_score'] >= 80 ) {
+    echo '<p class="status-excellent">Your site SEO is excellent!</p>';
+} elseif ( $data['overall_score'] >= 60 ) {
+    echo '<p class="status-good">Your site SEO is good. Room for improvement.</p>';
+} else {
+    echo '<p class="status-poor">Your site needs SEO attention.</p>';
+}
+
+echo '</div>';
+```
+
+### Issues Display
+
+```php
+$dashboard = new SEO_Dashboard();
+$data = $dashboard->get_dashboard_data();
+
+if ( ! empty( $data['issues'] ) ) {
+    echo '<div class="seo-issues">';
+    echo '<h3>SEO Issues (' . count( $data['issues'] ) . ')</h3>';
+    
+    foreach ( $data['issues'] as $issue ) {
+        $severity_class = 'severity-' . $issue['severity'];
+        echo "<div class='{$severity_class}'>";
+        echo '<strong>' . ucfirst( $issue['severity'] ) . ':</strong> ';
+        echo $issue['message'];
+        
+        if ( ! empty( $issue['action'] ) ) {
+            echo ' <a href="' . admin_url( $issue['action'] ) . '">Fix Now</a>';
+        }
+        
+        echo '</div>';
+    }
+    
+    echo '</div>';
+}
+```
+
+### Statistics Widget
+
+```php
+$dashboard = new SEO_Dashboard();
+$data = $dashboard->get_dashboard_data();
+$stats = $data['post_stats'];
+
+echo '<div class="seo-stats-widget">';
+echo '<h3>Content Statistics</h3>';
+echo '<ul>';
+echo "<li><strong>{$stats['total_posts']}</strong> Published Posts</li>";
+echo "<li><strong>{$stats['meta_percentage']}%</strong> Have Meta Descriptions</li>";
+echo "<li><strong>{$stats['keyword_percentage']}%</strong> Have Focus Keywords</li>";
+echo '</ul>';
+echo '</div>';
+```
+
+### Score Distribution Chart
+
+```php
+$dashboard = new SEO_Dashboard();
+$data = $dashboard->get_dashboard_data();
+$dist = $data['score_distribution'];
+
+echo '<div class="score-distribution">';
+echo '<h3>Score Distribution</h3>';
+echo '<table>';
+echo '<tr><th>Range</th><th>Keyword</th><th>Readability</th></tr>';
+
+foreach ( $dist as $label => $range ) {
+    echo '<tr>';
+    echo "<td>" . ucfirst( $label ) . " ({$range['min']}-{$range['max']})</td>";
+    echo "<td>{$range['keyword']}</td>";
+    echo "<td>{$range['readability']}</td>";
+    echo '</tr>';
+}
+
+echo '</table></div>';
+```
+
+### Top Performers List
+
+```php
+$dashboard = new SEO_Dashboard();
+$data = $dashboard->get_dashboard_data();
+
+if ( ! empty( $data['top_performers'] ) ) {
+    echo '<div class="top-performers">';
+    echo '<h3>Top Performing Content</h3><ul>';
+    
+    foreach ( $data['top_performers'] as $post ) {
+        $avg_score = round( ( $post['keyword_score'] + $post['readability_score'] ) / 2 );
+        $edit_url = get_edit_post_link( $post['ID'] );
+        
+        echo '<li>';
+        echo '<strong>' . esc_html( $post['post_title'] ) . '</strong><br>';
+        echo "Keyword: {$post['keyword_score']}/100 | ";
+        echo "Readability: {$post['readability_score']}/100 | ";
+        echo "Average: {$avg_score}/100";
+        echo ' <a href="' . $edit_url . '">Edit</a>';
+        echo '</li>';
+    }
+    
+    echo '</ul></div>';
+}
+```
+
+### Needs Attention Alert
+
+```php
+$dashboard = new SEO_Dashboard();
+$data = $dashboard->get_dashboard_data();
+
+if ( ! empty( $data['needs_attention'] ) ) {
+    echo '<div class="needs-attention-alert">';
+    echo '<h3>⚠ Content Needing Attention</h3>';
+    echo '<p>' . count( $data['needs_attention'] ) . ' posts have low SEO scores:</p><ul>';
+    
+    foreach ( $data['needs_attention'] as $post ) {
+        $edit_url = get_edit_post_link( $post['ID'] );
+        echo '<li>';
+        echo '<a href="' . $edit_url . '">' . esc_html( $post['post_title'] ) . '</a> ';
+        echo "(K: {$post['keyword_score']}, R: {$post['readability_score']})";
+        echo '</li>';
+    }
+    
+    echo '</ul></div>';
+}
+```
+
+### Recommendations Panel
+
+```php
+$dashboard = new SEO_Dashboard();
+$data = $dashboard->get_dashboard_data();
+
+if ( ! empty( $data['recommendations'] ) ) {
+    echo '<div class="seo-recommendations">';
+    echo '<h3>Recommendations</h3>';
+    
+    foreach ( $data['recommendations'] as $rec ) {
+        echo '<div class="recommendation">';
+        echo '<h4>' . esc_html( $rec['title'] ) . '</h4>';
+        echo '<p>' . esc_html( $rec['message'] ) . '</p>';
+        
+        if ( ! empty( $rec['action'] ) ) {
+            echo '<a href="' . admin_url( $rec['action'] ) . '" class="button">Take Action</a>';
+        }
+        
+        echo '</div>';
+    }
+    
+    echo '</div>';
+}
+```
+
+### Recent Activity Feed
+
+```php
+$dashboard = new SEO_Dashboard();
+$data = $dashboard->get_dashboard_data();
+
+if ( ! empty( $data['recent_activity'] ) ) {
+    echo '<div class="recent-activity">';
+    echo '<h3>Recent Activity</h3><ul>';
+    
+    foreach ( $data['recent_activity'] as $post ) {
+        $time_ago = human_time_diff( strtotime( $post['post_modified'] ), current_time( 'timestamp' ) );
+        echo '<li>';
+        echo '<strong>' . esc_html( $post['post_title'] ) . '</strong><br>';
+        echo "Updated {$time_ago} ago | ";
+        echo "Scores: K:{$post['keyword_score']} R:{$post['readability_score']}";
+        echo '</li>';
+    }
+    
+    echo '</ul></div>';
+}
+```
+
+### Manual Cache Clear
+
+```php
+$dashboard = new SEO_Dashboard();
+
+// Clear cache manually
+$dashboard->clear_cache();
+
+// Get fresh data
+$data = $dashboard->get_dashboard_data();
+```
+
+### Admin Page Integration
+
+```php
+function render_seo_dashboard_page() {
+    $dashboard = new SEO_Dashboard();
+    $data = $dashboard->get_dashboard_data();
+    
+    ?>
+    <div class="wrap">
+        <h1>SEO Dashboard</h1>
+        
+        <div class="seo-score-card">
+            <h2>Overall SEO Score</h2>
+            <div class="score-display"><?php echo $data['overall_score']; ?>/100</div>
+        </div>
+        
+        <?php if ( ! empty( $data['issues'] ) ): ?>
+        <div class="seo-issues">
+            <h2>Issues Detected</h2>
+            <?php foreach ( $data['issues'] as $issue ): ?>
+                <div class="issue-<?php echo $issue['severity']; ?>">
+                    <strong><?php echo $issue['count']; ?> Issues:</strong>
+                    <?php echo $issue['message']; ?>
+                </div>
+            <?php endforeach; ?>
+        </div>
+        <?php endif; ?>
+        
+        <div class="seo-stats">
+            <h2>Statistics</h2>
+            <p>Total Posts: <?php echo $data['post_stats']['total_posts']; ?></p>
+            <p>Meta Descriptions: <?php echo $data['post_stats']['meta_percentage']; ?>%</p>
+            <p>Focus Keywords: <?php echo $data['post_stats']['keyword_percentage']; ?>%</p>
+        </div>
+    </div>
+    <?php
+}
+
+add_action( 'admin_menu', function() {
+    add_menu_page(
+        'SEO Dashboard',
+        'SEO Dashboard',
+        'manage_options',
+        'seo-dashboard',
+        'render_seo_dashboard_page',
+        'dashicons-chart-line'
+    );
+});
+```
+
+## Issue Types Reference
+
+| Issue ID | Severity | Condition | Action |
+|----------|----------|-----------|--------|
+| `posts_no_meta` | high | Posts missing meta descriptions | Bulk editor |
+| `duplicate_titles` | medium | Multiple posts with same title | Bulk editor |
+| `low_word_count` | medium | Posts < 300 words | - |
+| `no_focus_keyword` | low | Posts without focus keyword | - |
+| `readability_issues` | low | Posts with score < 60 | - |
+
+## Performance & Caching
+
+### Cache Strategy
+
+- **Duration**: 5 minutes (300 seconds)
+- **Key**: `geoai_dashboard_data`
+- **Type**: WordPress transient
+- **Invalidation**: Automatic on post save/delete
+
+### Database Optimization
+
+The dashboard uses optimized SQL queries:
+
+- **Aggregation**: Uses SQL `CASE` statements for distribution counts
+- **Single Queries**: Minimizes database round-trips
+- **Indexing**: Relies on WordPress core indexes for performance
+
+### Best Practices
+
+1. **Cache First**: Always call `get_dashboard_data()` (handles caching)
+2. **Manual Clear**: Use `clear_cache()` only when necessary
+3. **Large Sites**: Consider increasing cache duration for 1000+ posts
+4. **Admin Only**: Restrict dashboard access to reduce server load
+
+## Meta Keys Reference
+
+The dashboard tracks these post meta keys:
+
+- `_geoai_meta_description` - Meta description text
+- `_geoai_focus_keyword` - Focus keyword
+- `_geoai_keyword_score` - Keyword optimization score (0-100)
+- `_geoai_readability_score` - Readability score (0-100)
+
+## Related
+
+- [Keyword Analyzer](/api/analyzers/keyword)
+- [Readability Analyzer](/api/analyzers/readability)
+- [Content Insights](/api/analyzers/content-insights)
+- [Internal Linking](/api/analyzers/internal-linking)

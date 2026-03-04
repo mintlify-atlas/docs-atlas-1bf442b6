@@ -1,0 +1,598 @@
+---
+title: Gutenberg Block Development
+description: Learn how to develop and extend Gutenberg blocks in GEO AI
+---
+
+## Overview
+
+GEO AI includes a custom Gutenberg block called **Answer Card** that provides a structured way to create AI-optimized content summaries. This guide explains the block architecture and how to create custom blocks.
+
+## Answer Card Block
+
+The Answer Card block is designed to improve content answerability for AI search engines by providing:
+
+- A concise TL;DR summary (max 200 words)
+- Key facts in bullet format
+- Structured, semantic HTML output
+- Schema.org compatibility
+
+### Block Structure
+
+```
+blocks/answer-card/
+├── block.json          # Block metadata and configuration
+├── index.js           # Block registration
+├── edit.js            # Editor component (React)
+├── save.js            # Frontend output (React)
+├── style.css          # Frontend styles
+└── editor.css         # Editor-only styles
+```
+
+## Block Configuration
+
+### block.json
+
+**Location**: `blocks/answer-card/block.json`
+
+```json
+{
+  "$schema": "https://schemas.wp.org/trunk/block.json",
+  "apiVersion": 3,
+  "name": "geoai/answer-card",
+  "version": "1.0.0",
+  "title": "Answer Card",
+  "category": "text",
+  "icon": "info",
+  "description": "A concise TL;DR summary with key facts optimized for AI answer engines.",
+  "supports": {
+    "html": false,
+    "align": true
+  },
+  "attributes": {
+    "tldr": {
+      "type": "string",
+      "default": ""
+    },
+    "keyFacts": {
+      "type": "array",
+      "default": []
+    }
+  },
+  "textdomain": "geo-ai",
+  "editorScript": "file:./index.js",
+  "editorStyle": "file:./editor.css",
+  "style": "file:./style.css"
+}
+```
+
+<Note>
+API Version 3 is the latest block API version (WordPress 6.2+). It provides improved performance and better editor integration.
+</Note>
+
+### Block Attributes
+
+| Attribute | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `tldr` | string | `""` | The main summary text (RichText) |
+| `keyFacts` | array | `[]` | Array of key fact strings |
+
+## Editor Component
+
+**Location**: `blocks/answer-card/edit.js`
+
+```jsx edit.js
+import { useBlockProps, RichText } from '@wordpress/block-editor';
+import { Button } from '@wordpress/components';
+import { __ } from '@wordpress/i18n';
+
+export default function Edit({ attributes, setAttributes }) {
+    const { tldr, keyFacts } = attributes;
+
+    const addKeyFact = () => {
+        setAttributes({
+            keyFacts: [...keyFacts, ''],
+        });
+    };
+
+    const updateKeyFact = (index, value) => {
+        const newKeyFacts = [...keyFacts];
+        newKeyFacts[index] = value;
+        setAttributes({ keyFacts: newKeyFacts });
+    };
+
+    const removeKeyFact = (index) => {
+        const newKeyFacts = keyFacts.filter((_, i) => i !== index);
+        setAttributes({ keyFacts: newKeyFacts });
+    };
+
+    return (
+        <div {...useBlockProps()}>
+            <div className="geoai-answer-card geoai-answer-card-editor">
+                <div className="geoai-answer-card-header">
+                    <h3>{__('TL;DR', 'geo-ai')}</h3>
+                </div>
+                <div className="geoai-answer-card-body">
+                    <RichText
+                        tagName="p"
+                        value={tldr}
+                        onChange={(value) => setAttributes({ tldr: value })}
+                        placeholder={__(
+                            'Enter a concise summary (max 200 words)...',
+                            'geo-ai'
+                        )}
+                        className="geoai-answer-card-tldr"
+                    />
+
+                    <div className="geoai-answer-card-facts">
+                        <h4>{__('Key Facts', 'geo-ai')}</h4>
+                        <ul>
+                            {keyFacts.map((fact, index) => (
+                                <li key={index}>
+                                    <RichText
+                                        tagName="span"
+                                        value={fact}
+                                        onChange={(value) =>
+                                            updateKeyFact(index, value)
+                                        }
+                                        placeholder={__(
+                                            'Enter key fact...',
+                                            'geo-ai'
+                                        )}
+                                    />
+                                    <Button
+                                        isSmall
+                                        isDestructive
+                                        onClick={() => removeKeyFact(index)}
+                                    >
+                                        {__('Remove', 'geo-ai')}
+                                    </Button>
+                                </li>
+                            ))}
+                        </ul>
+                        <Button isPrimary isSmall onClick={addKeyFact}>
+                            {__('Add Key Fact', 'geo-ai')}
+                        </Button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+```
+
+### Key Features
+
+<AccordionGroup>
+  <Accordion title="RichText Component">
+    The `RichText` component from `@wordpress/block-editor` enables inline formatting:
+    
+    - Bold, italic, links
+    - Maintains HTML structure
+    - Accessible editing experience
+    - Placeholder text support
+  </Accordion>
+
+  <Accordion title="Dynamic Key Facts">
+    Key facts are stored as an array and can be:
+    
+    - Added dynamically with "Add Key Fact" button
+    - Edited inline with RichText
+    - Removed individually
+    - Reordered (future enhancement)
+  </Accordion>
+
+  <Accordion title="Block Props">
+    `useBlockProps()` provides essential block wrapper attributes:
+    
+    - Block ID and classes
+    - Data attributes
+    - ARIA labels
+    - Selection state
+  </Accordion>
+</AccordionGroup>
+
+## Save Component
+
+**Location**: `blocks/answer-card/save.js`
+
+```jsx save.js
+import { useBlockProps, RichText } from '@wordpress/block-editor';
+import { __ } from '@wordpress/i18n';
+
+export default function save({ attributes }) {
+    const { tldr, keyFacts } = attributes;
+
+    return (
+        <div {...useBlockProps.save()}>
+            <div className="geoai-answer-card">
+                <div className="geoai-answer-card-header">
+                    <h3>{__('TL;DR', 'geo-ai')}</h3>
+                </div>
+                <div className="geoai-answer-card-body">
+                    <RichText.Content
+                        tagName="p"
+                        value={tldr}
+                        className="geoai-answer-card-tldr"
+                    />
+
+                    {keyFacts && keyFacts.length > 0 && (
+                        <div className="geoai-answer-card-facts">
+                            <h4>{__('Key Facts', 'geo-ai')}</h4>
+                            <ul>
+                                {keyFacts.map((fact, index) => (
+                                    <li key={index}>
+                                        <RichText.Content
+                                            tagName="span"
+                                            value={fact}
+                                        />
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
+```
+
+<Warning>
+The `save` function must return **static HTML** that matches the editor output. Dynamic content should use PHP rendering or dynamic blocks instead.
+</Warning>
+
+## Block Registration
+
+### JavaScript Registration
+
+**Location**: `blocks/answer-card/index.js`
+
+```js index.js
+import { registerBlockType } from '@wordpress/blocks';
+import Edit from './edit';
+import save from './save';
+import metadata from './block.json';
+
+registerBlockType(metadata.name, {
+    edit: Edit,
+    save,
+});
+```
+
+### PHP Registration
+
+**Location**: `geo-ai.php:134-136`
+
+```php
+public function register_blocks() {
+    register_block_type( GEOAI_PLUGIN_DIR . 'blocks/answer-card' );
+}
+```
+
+This method automatically:
+- Loads `block.json`
+- Registers scripts and styles
+- Enqueues dependencies
+- Sets up editor integration
+
+## Styling
+
+### Frontend Styles
+
+**Location**: `blocks/answer-card/style.css`
+
+```css
+.geoai-answer-card {
+    background: #f8f9fa;
+    border: 2px solid #e9ecef;
+    border-radius: 8px;
+    padding: 24px;
+    margin: 24px 0;
+}
+
+.geoai-answer-card-header h3 {
+    margin: 0 0 16px 0;
+    font-size: 1.25em;
+    font-weight: 600;
+    color: #2563eb;
+}
+
+.geoai-answer-card-tldr {
+    font-size: 1.05em;
+    line-height: 1.6;
+    margin-bottom: 20px;
+}
+
+.geoai-answer-card-facts ul {
+    list-style: none;
+    padding-left: 0;
+}
+
+.geoai-answer-card-facts li {
+    padding-left: 24px;
+    position: relative;
+    margin-bottom: 8px;
+}
+
+.geoai-answer-card-facts li::before {
+    content: "✓";
+    position: absolute;
+    left: 0;
+    color: #10b981;
+    font-weight: bold;
+}
+```
+
+### Editor-Only Styles
+
+**Location**: `blocks/answer-card/editor.css`
+
+```css
+.geoai-answer-card-editor {
+    border-left: 4px solid #2563eb;
+}
+
+.geoai-answer-card-editor .components-button {
+    margin-top: 8px;
+}
+
+.geoai-answer-card-facts li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+```
+
+## Quick Fix Integration
+
+The Answer Card can be automatically inserted via the Quick Fix system:
+
+**Location**: `includes/class-geoai-rest.php:150-183`
+
+```php
+private function insert_answer_card_block( $post_id ) {
+    $post = get_post( $post_id );
+    
+    if ( ! $post ) {
+        return new \WP_Error( 'invalid_post', 
+            __( 'Post not found.', 'geo-ai' ) );
+    }
+
+    // Check if Answer Card already exists
+    if ( has_block( 'geoai/answer-card', $post ) ) {
+        return new \WP_Error( 'already_exists', 
+            __( 'Answer Card already exists.', 'geo-ai' ) );
+    }
+
+    // Insert Answer Card block at the beginning
+    $answer_card_block = '<!-- wp:geoai/answer-card {"tldr":"","keyFacts":[]} /-->';
+    $updated_content = $answer_card_block . "\n\n" . $post->post_content;
+
+    wp_update_post([
+        'ID' => $post_id,
+        'post_content' => $updated_content,
+    ], true);
+
+    return array(
+        'content' => $updated_content,
+        'notice' => __( 'Answer Card inserted.', 'geo-ai' ),
+    );
+}
+```
+
+## Creating Custom Blocks
+
+### Step 1: Create Block Directory
+
+```bash
+mkdir -p blocks/my-custom-block
+cd blocks/my-custom-block
+```
+
+### Step 2: Create block.json
+
+```json block.json
+{
+  "$schema": "https://schemas.wp.org/trunk/block.json",
+  "apiVersion": 3,
+  "name": "geoai/my-custom-block",
+  "title": "My Custom Block",
+  "category": "text",
+  "icon": "star-filled",
+  "attributes": {
+    "content": {
+      "type": "string",
+      "default": ""
+    }
+  },
+  "textdomain": "geo-ai",
+  "editorScript": "file:./index.js",
+  "style": "file:./style.css"
+}
+```
+
+### Step 3: Create Edit Component
+
+```jsx edit.js
+import { useBlockProps, RichText } from '@wordpress/block-editor';
+import { __ } from '@wordpress/i18n';
+
+export default function Edit({ attributes, setAttributes }) {
+    return (
+        <div {...useBlockProps()}>
+            <RichText
+                tagName="p"
+                value={attributes.content}
+                onChange={(content) => setAttributes({ content })}
+                placeholder={__('Enter content...', 'geo-ai')}
+            />
+        </div>
+    );
+}
+```
+
+### Step 4: Create Save Component
+
+```jsx save.js
+import { useBlockProps, RichText } from '@wordpress/block-editor';
+
+export default function save({ attributes }) {
+    return (
+        <div {...useBlockProps.save()}>
+            <RichText.Content
+                tagName="p"
+                value={attributes.content}
+            />
+        </div>
+    );
+}
+```
+
+### Step 5: Register Block
+
+```jsx index.js
+import { registerBlockType } from '@wordpress/blocks';
+import Edit from './edit';
+import save from './save';
+import metadata from './block.json';
+
+registerBlockType(metadata.name, {
+    edit: Edit,
+    save,
+});
+```
+
+### Step 6: Register in PHP
+
+Add to `geo-ai.php`:
+
+```php
+public function register_blocks() {
+    register_block_type( GEOAI_PLUGIN_DIR . 'blocks/answer-card' );
+    register_block_type( GEOAI_PLUGIN_DIR . 'blocks/my-custom-block' );
+}
+```
+
+## Build Process
+
+GEO AI uses `@wordpress/scripts` for building blocks:
+
+### Development
+
+```bash
+npm start
+```
+
+Starts webpack in watch mode with:
+- Hot reloading
+- Source maps
+- Fast refresh
+
+### Production Build
+
+```bash
+npm run build
+```
+
+Creates optimized bundles:
+- Minified JavaScript
+- Optimized CSS
+- Asset manifests
+
+### Output
+
+Build files are generated in `build/` directory:
+
+```
+build/
+├── answer-card/
+│   ├── index.js
+│   ├── index.asset.php  # Dependency list
+│   ├── style-index.css
+│   └── index.css
+└── editor.js
+```
+
+## Block Patterns
+
+Define reusable block patterns for common layouts:
+
+```php
+register_block_pattern(
+    'geoai/answer-card-template',
+    array(
+        'title'       => __( 'Answer Card Template', 'geo-ai' ),
+        'description' => __( 'Pre-filled Answer Card example', 'geo-ai' ),
+        'content'     => '<!-- wp:geoai/answer-card {"tldr":"Your summary here","keyFacts":["Fact 1","Fact 2"]} /-->',
+        'categories'  => array( 'text' ),
+    )
+);
+```
+
+## Testing
+
+### Manual Testing
+
+1. Activate plugin in development environment
+2. Create/edit a post
+3. Insert "Answer Card" block from inserter
+4. Test:
+   - Adding/removing key facts
+   - Rich text formatting
+   - Block validation
+   - Save/publish
+   - Frontend rendering
+
+### Automated Testing
+
+Use `@wordpress/e2e-test-utils` for end-to-end tests:
+
+```js
+import { createNewPost, insertBlock } from '@wordpress/e2e-test-utils';
+
+describe('Answer Card Block', () => {
+    it('inserts block successfully', async () => {
+        await createNewPost();
+        await insertBlock('Answer Card');
+        // Add assertions
+    });
+});
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Keep It Simple" icon="lightbulb">
+    Focus blocks on single, clear purposes. Complex functionality should be split into multiple blocks.
+  </Card>
+  
+  <Card title="Accessibility First" icon="universal-access">
+    Always use semantic HTML, ARIA labels, and keyboard navigation support.
+  </Card>
+  
+  <Card title="Test Extensively" icon="vial">
+    Test in different browsers, with screen readers, and in various WordPress themes.
+  </Card>
+  
+  <Card title="Document Everything" icon="book">
+    Add JSDoc comments, prop types, and user-facing help text.
+  </Card>
+</CardGroup>
+
+## Resources
+
+- [Block Editor Handbook](https://developer.wordpress.org/block-editor/)
+- [block.json Reference](https://developer.wordpress.org/block-editor/reference-guides/block-api/block-metadata/)
+- [@wordpress/scripts Documentation](https://developer.wordpress.org/block-editor/reference-guides/packages/packages-scripts/)
+- [Gutenberg Components](https://wordpress.github.io/gutenberg/)
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="REST API" icon="code" href="/developers/rest-api">
+    Integrate blocks with the REST API
+  </Card>
+  <Card title="Extending GEO AI" icon="puzzle-piece" href="/developers/extending">
+    Use hooks and filters to customize blocks
+  </Card>
+</CardGroup>

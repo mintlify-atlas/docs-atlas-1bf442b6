@@ -1,0 +1,345 @@
+---
+title: Internal Linking
+description: Suggests internal links based on content analysis and relevance scoring
+---
+
+## Overview
+
+The `Internal_Linking` class analyzes content to suggest relevant internal links from existing posts and pages. It uses keyword extraction and relevance scoring to recommend the most appropriate linking opportunities.
+
+**Namespace:** `GeoAI\Analyzers`
+
+**File:** `includes/analyzers/class-internal-linking.php`
+
+## Purpose
+
+Internal Linking helps improve site structure and SEO by:
+
+- **Keyword Extraction**: Identifies important keywords from content
+- **Relevance Scoring**: Calculates how related other posts are
+- **Anchor Text Suggestions**: Recommends natural anchor text
+- **Link Statistics**: Tracks internal and external link counts
+- **Duplicate Detection**: Prevents suggesting already-linked posts
+
+## Public Methods
+
+### get_suggestions()
+
+Generates internal linking suggestions for a post based on content analysis.
+
+<ParamField path="post_id" type="int" required>
+  Current post ID to analyze
+</ParamField>
+
+<ParamField path="content" type="string" required>
+  Post content to extract keywords from
+</ParamField>
+
+**Returns:** `array` - Array of suggestion objects (max 10)
+
+**Return Structure:**
+
+```php
+array(
+    array(
+        'post_id'    => 42,
+        'title'      => 'Related Post Title',
+        'url'        => 'https://example.com/related-post',
+        'excerpt'    => 'First 20 words of content...',
+        'relevance'  => 0.85,                    // 0-1 score
+        'anchor'     => 'suggested anchor text',
+        'post_type'  => 'post',
+        'categories' => array( 'SEO', 'WordPress' )
+    ),
+    // ... up to 10 suggestions
+)
+```
+
+### already_linked()
+
+Checks if content already contains a link to a specific post.
+
+<ParamField path="content" type="string" required>
+  Post content to check
+</ParamField>
+
+<ParamField path="target_post_id" type="int" required>
+  Target post ID to look for
+</ParamField>
+
+**Returns:** `bool` - True if link exists, false otherwise
+
+### get_link_stats()
+
+Returns statistics about links in the content.
+
+<ParamField path="content" type="string" required>
+  Post content to analyze
+</ParamField>
+
+**Returns:** `array` - Link statistics
+
+```php
+array(
+    'internal' => 5,   // Internal links count
+    'external' => 3,   // External links count
+    'total'    => 8    // Total links count
+)
+```
+
+## Relevance Scoring Algorithm
+
+Relevance scores range from 0 to 1, with minimum threshold of 0.3 (30%):
+
+### Score Calculation
+
+1. **Title Matches** (2x weight)
+   - Keyword appears in target post title = keyword weight × 2
+
+2. **Content Matches** (1x weight)
+   - Keyword appears in target post content = keyword weight × min(mentions/5, 1)
+   - Capped at 5 mentions to prevent over-weighting
+
+3. **Normalization**
+   - Final score = total matches / (total keyword weight × 2)
+   - Capped at 1.0
+
+### Keyword Weighting
+
+Keywords are extracted and weighted based on frequency:
+
+- Top 20 keywords by frequency
+- Weights normalized 0-1 (most frequent = 1.0)
+- Stop words excluded
+- Minimum 3 characters
+
+## Usage Examples
+
+### Basic Link Suggestions
+
+```php
+use GeoAI\Analyzers\Internal_Linking;
+
+$linker = new Internal_Linking();
+$suggestions = $linker->get_suggestions( $post_id, $post_content );
+
+if ( ! empty( $suggestions ) ) {
+    echo '<div class="link-suggestions">';
+    echo '<h3>Suggested Internal Links:</h3><ul>';
+    
+    foreach ( $suggestions as $suggestion ) {
+        $relevance_percent = round( $suggestion['relevance'] * 100 );
+        echo "<li>";
+        echo "<strong>{$suggestion['title']}</strong> ";
+        echo "({$relevance_percent}% relevant)<br>";
+        echo "<em>Suggested anchor: {$suggestion['anchor']}</em>";
+        echo "</li>";
+    }
+    
+    echo '</ul></div>';
+}
+```
+
+### Display in Post Editor
+
+```php
+function display_linking_suggestions_meta_box( $post ) {
+    $linker = new Internal_Linking();
+    $suggestions = $linker->get_suggestions( $post->ID, $post->post_content );
+    
+    echo '<div class="internal-linking-suggestions">';
+    
+    if ( empty( $suggestions ) ) {
+        echo '<p>No relevant internal linking opportunities found.</p>';
+        return;
+    }
+    
+    foreach ( $suggestions as $suggestion ) {
+        echo '<div class="suggestion-item">';
+        echo '<h4>' . esc_html( $suggestion['title'] ) . '</h4>';
+        echo '<p class="excerpt">' . esc_html( $suggestion['excerpt'] ) . '</p>';
+        echo '<p class="meta">';
+        echo 'Relevance: ' . round( $suggestion['relevance'] * 100 ) . '% | ';
+        echo 'Categories: ' . implode( ', ', $suggestion['categories'] );
+        echo '</p>';
+        echo '<button class="button" onclick="insertLink(\'' . esc_js( $suggestion['url'] ) . '\', \'' . esc_js( $suggestion['anchor'] ) . '\')">Insert Link</button>';
+        echo '</div>';
+    }
+    
+    echo '</div>';
+}
+
+add_action( 'add_meta_boxes', function() {
+    add_meta_box(
+        'internal_linking_suggestions',
+        'Internal Linking Suggestions',
+        'display_linking_suggestions_meta_box',
+        'post',
+        'side'
+    );
+});
+```
+
+### Filter Already Linked Posts
+
+```php
+$linker = new Internal_Linking();
+$suggestions = $linker->get_suggestions( $post_id, $content );
+
+// Remove suggestions that are already linked
+$filtered_suggestions = array_filter( $suggestions, function( $suggestion ) use ( $linker, $content ) {
+    return ! $linker->already_linked( $content, $suggestion['post_id'] );
+});
+```
+
+### Link Statistics Dashboard
+
+```php
+$linker = new Internal_Linking();
+$stats = $linker->get_link_stats( $post_content );
+
+echo '<div class="link-stats">';
+echo '<h4>Link Statistics</h4>';
+echo '<ul>';
+echo "<li>Internal Links: {$stats['internal']}</li>";
+echo "<li>External Links: {$stats['external']}</li>";
+echo "<li>Total Links: {$stats['total']}</li>";
+echo '</ul>';
+
+if ( $stats['internal'] < 3 ) {
+    echo '<p class="warning">Consider adding more internal links for better SEO.</p>';
+}
+
+if ( $stats['external'] > $stats['internal'] ) {
+    echo '<p class="info">More external than internal links. Balance recommended.</p>';
+}
+
+echo '</div>';
+```
+
+### Automatic Link Insertion
+
+```php
+function auto_suggest_internal_links( $content, $post_id ) {
+    $linker = new Internal_Linking();
+    $suggestions = $linker->get_suggestions( $post_id, $content );
+    
+    // Get top 3 suggestions
+    $top_suggestions = array_slice( $suggestions, 0, 3 );
+    
+    if ( ! empty( $top_suggestions ) ) {
+        $content .= '<div class="related-posts">';
+        $content .= '<h3>Related Articles:</h3><ul>';
+        
+        foreach ( $top_suggestions as $suggestion ) {
+            $content .= sprintf(
+                '<li><a href="%s">%s</a></li>',
+                esc_url( $suggestion['url'] ),
+                esc_html( $suggestion['title'] )
+            );
+        }
+        
+        $content .= '</ul></div>';
+    }
+    
+    return $content;
+}
+
+add_filter( 'the_content', 'auto_suggest_internal_links', 10, 2 );
+```
+
+### Category-Based Filtering
+
+```php
+$linker = new Internal_Linking();
+$suggestions = $linker->get_suggestions( $post_id, $content );
+
+// Get current post categories
+$current_categories = wp_get_post_categories( $post_id, array( 'fields' => 'names' ) );
+
+// Prioritize suggestions from same categories
+$same_category = array();
+$other_category = array();
+
+foreach ( $suggestions as $suggestion ) {
+    $has_common_category = ! empty( array_intersect( $current_categories, $suggestion['categories'] ) );
+    
+    if ( $has_common_category ) {
+        $same_category[] = $suggestion;
+    } else {
+        $other_category[] = $suggestion;
+    }
+}
+
+// Display same-category suggestions first
+$prioritized = array_merge( $same_category, $other_category );
+```
+
+### Relevance Threshold Filtering
+
+```php
+$linker = new Internal_Linking();
+$suggestions = $linker->get_suggestions( $post_id, $content );
+
+// Only show highly relevant suggestions (70%+)
+$high_relevance = array_filter( $suggestions, function( $suggestion ) {
+    return $suggestion['relevance'] >= 0.7;
+});
+
+if ( ! empty( $high_relevance ) ) {
+    echo '<h4>Highly Relevant Links:</h4>';
+    // Display suggestions
+}
+```
+
+### AJAX Suggestions Endpoint
+
+```php
+add_action( 'wp_ajax_get_link_suggestions', function() {
+    check_ajax_referer( 'link-suggestions' );
+    
+    $post_id = isset( $_POST['post_id'] ) ? intval( $_POST['post_id'] ) : 0;
+    $content = isset( $_POST['content'] ) ? wp_kses_post( $_POST['content'] ) : '';
+    
+    if ( ! $post_id || ! $content ) {
+        wp_send_json_error( 'Invalid parameters' );
+    }
+    
+    $linker = new Internal_Linking();
+    $suggestions = $linker->get_suggestions( $post_id, $content );
+    
+    wp_send_json_success( $suggestions );
+});
+```
+
+## Query Optimization
+
+The analyzer searches up to 50 published posts/pages containing matching keywords:
+
+- **Post Types**: `post` and `page` (excludes attachments)
+- **Status**: Only published content
+- **Ordering**: Most recent first
+- **Pattern Matching**: Uses REGEXP for flexible keyword matching
+
+## Best Practices
+
+1. **Minimum Relevance**: Default 30% threshold ensures quality suggestions
+2. **Suggestion Limit**: Max 10 suggestions prevents overwhelming users
+3. **Title Weight**: 2x weighting prioritizes title matches (stronger signals)
+4. **Stop Words**: Excluded to focus on meaningful content words
+5. **Already Linked**: Use `already_linked()` to prevent duplicate suggestions
+6. **Link Balance**: Target 3-5 internal links per 1000 words
+7. **Category Alignment**: Prioritize same-category suggestions when possible
+
+## Performance Considerations
+
+- Results limited to 50 posts to reduce database load
+- Keyword extraction happens in PHP (fast for single posts)
+- REGEXP queries may be slow on large databases (consider caching)
+- Cache suggestions for 5-10 minutes for frequently edited posts
+
+## Related
+
+- [Content Insights](/api/analyzers/content-insights)
+- [SEO Dashboard](/api/analyzers/seo-dashboard)
+- [Keyword Analyzer](/api/analyzers/keyword)

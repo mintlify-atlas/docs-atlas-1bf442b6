@@ -1,0 +1,529 @@
+---
+title: Content analyzers
+description: Deep dive into GEO AI's five analyzer engines for comprehensive SEO analysis
+---
+
+GEO AI includes five specialized analyzer engines that power the plugin's SEO recommendations. Each analyzer focuses on a specific aspect of content optimization.
+
+## Overview
+
+The analyzer system is modular and extensible, with each analyzer returning scored results and actionable recommendations.
+
+### Analyzer Architecture
+
+All analyzers are located in `includes/analyzers/` and follow a consistent pattern:
+
+```php
+namespace GeoAI\Analyzers;
+
+class Analyzer_Name {
+    public function analyze( $input ) {
+        return array(
+            'score'  => 0-100,
+            'issues' => array(),
+            // analyzer-specific data
+        );
+    }
+}
+```
+
+---
+
+## 1. Keyword Analyzer
+
+**File:** `includes/analyzers/class-keyword-analyzer.php`
+
+Analyzes content for focus keyword optimization across multiple dimensions.
+
+### Usage
+
+```php
+use GeoAI\Analyzers\Keyword_Analyzer;
+
+$analyzer = new Keyword_Analyzer();
+$result = $analyzer->analyze( $keyword, array(
+    'title'            => $post->post_title,
+    'content'          => $post->post_content,
+    'excerpt'          => $post->post_excerpt,
+    'slug'             => $post->post_name,
+    'meta_description' => get_post_meta( $post_id, '_geoai_meta_description', true ),
+));
+```
+
+### Analysis Criteria
+
+<AccordionGroup>
+  <Accordion title="Title Analysis (20 points)">
+    - Checks if keyword appears in title
+    - Bonus points if keyword appears in first 10 characters
+    - Issue IDs: `keyword_not_in_title`, `keyword_in_title_start`, `keyword_in_title`
+  </Accordion>
+
+  <Accordion title="Meta Description (15 points)">
+    - Verifies keyword presence in meta description
+    - Checks if meta description exists
+    - Issue IDs: `no_meta_description`, `keyword_not_in_meta`, `keyword_in_meta`
+  </Accordion>
+
+  <Accordion title="URL/Slug (10 points)">
+    - Sanitizes keyword and checks URL slug
+    - Issue IDs: `keyword_not_in_slug`, `keyword_in_slug`
+  </Accordion>
+
+  <Accordion title="First Paragraph (15 points)">
+    - Checks if keyword appears in opening paragraph
+    - Issue IDs: `keyword_not_in_first_para`, `keyword_in_first_para`
+  </Accordion>
+
+  <Accordion title="Keyword Density (20 points)">
+    - Ideal range: 0.5% - 2.5%
+    - Too low: < 0.3% (5 points)
+    - Too high: > 3.0% (5 points, keyword stuffing warning)
+    - Optimal: 0.5-2.5% (20 points)
+    - Issue IDs: `keyword_density_low`, `keyword_density_high`, `keyword_density_good`
+  </Accordion>
+
+  <Accordion title="Distribution (20 points)">
+    - Divides content into 3 sections
+    - Checks keyword presence across sections
+    - 0 sections: 0 points (error)
+    - 1 section: 7 points (warning)
+    - 2 sections: 15 points (ok)
+    - 3 sections: 20 points (good)
+    - Issue IDs: `keyword_not_distributed`, `keyword_poorly_distributed`, `keyword_fairly_distributed`, `keyword_well_distributed`
+  </Accordion>
+</AccordionGroup>
+
+### Return Data
+
+```php
+array(
+    'score'       => 85,              // 0-100
+    'issues'      => array(...),      // Array of issue objects
+    'keyword'     => 'seo plugin',    // Analyzed keyword
+    'density'     => 1.2,             // Percentage
+    'occurrences' => 15,              // Total count
+)
+```
+
+---
+
+## 2. Readability Analyzer
+
+**File:** `includes/analyzers/class-readability-analyzer.php`
+
+Evaluates content readability using Flesch Reading Ease and other metrics.
+
+### Usage
+
+```php
+use GeoAI\Analyzers\Readability_Analyzer;
+
+$analyzer = new Readability_Analyzer();
+$result = $analyzer->analyze( $post->post_content );
+```
+
+### Analysis Criteria
+
+<CardGroup cols={2}>
+  <Card title="Flesch Reading Ease" icon="gauge-high">
+    **25 points** - Uses formula:
+    ```
+    206.835 - 1.015 × (words/sentences) - 84.6 × (syllables/words)
+    ```
+    
+    **Score Ranges:**
+    - 60+: Good (25 points)
+    - 50-59: Acceptable (18 points)
+    - Below 50: Difficult (10 points)
+  </Card>
+
+  <Card title="Sentence Length" icon="text-width">
+    **20 points** - Average words per sentence
+    
+    - >25% sentences over 20 words: Warning (10 points)
+    - Otherwise: Good (20 points)
+  </Card>
+
+  <Card title="Paragraph Length" icon="paragraph">
+    **15 points** - Words per paragraph
+    
+    - >30% paragraphs over 150 words: Warning (8 points)
+    - Otherwise: Good (15 points)
+  </Card>
+
+  <Card title="Subheadings" icon="heading">
+    **15 points** - H2-H6 distribution
+    
+    - Less than 300 words: Optional (15 points)
+    - No subheadings: Error (0 points)
+    - More than 300 words per subheading: Warning (8 points)
+    - Good distribution: 15 points
+  </Card>
+
+  <Card title="Passive Voice" icon="message-exclamation">
+    **15 points** - Active vs passive usage
+    
+    - >20% passive: Warning (8 points)
+    - Otherwise: Good (15 points)
+    
+    Detects patterns like "is/was/were [verb]ed/en"
+  </Card>
+
+  <Card title="Transition Words" icon="arrow-right-arrow-left">
+    **10 points** - Sentence connectors
+    
+    - Less than 20% sentences with transitions: Warning (5 points)
+    - ≥20%: Good (10 points)
+    
+    Tracks 28 transition words/phrases
+  </Card>
+</CardGroup>
+
+### Return Data
+
+```php
+array(
+    'score'               => 78,
+    'issues'              => array(...),
+    'flesch_score'        => 65.3,
+    'avg_sentence_length' => 18.5,
+    'word_count'          => 1250,
+)
+```
+
+---
+
+## 3. Content Insights
+
+**File:** `includes/analyzers/class-content-insights.php`
+
+Provides word frequency analysis and content metrics.
+
+### Usage
+
+```php
+use GeoAI\Analyzers\Content_Insights;
+
+$analyzer = new Content_Insights();
+$insights = $analyzer->analyze( $content, $title );
+```
+
+### Features
+
+<Tabs>
+  <Tab title="Word Frequency">
+    Returns top 30 words (excluding stop words) with:
+    ```php
+    array(
+        array(
+            'word'       => 'optimization',
+            'count'      => 12,
+            'percentage' => 1.5,
+        ),
+        // ...
+    )
+    ```
+    
+    Filters out 100+ common stop words.
+  </Tab>
+
+  <Tab title="Phrase Frequency">
+    Extracts 2-3 word phrases that appear ≥2 times:
+    ```php
+    array(
+        array(
+            'phrase' => 'search engine optimization',
+            'count'  => 5,
+        ),
+        // ...
+    )
+    ```
+    
+    Returns top 15 phrases.
+  </Tab>
+
+  <Tab title="Content Metrics">
+    ```php
+    array(
+        'word_count'              => 1500,
+        'sentence_count'          => 85,
+        'paragraph_count'         => 12,
+        'character_count'         => 8450,
+        'unique_words'            => 520,
+        'lexical_diversity'       => 34.7,  // %
+        'reading_time'            => 8,      // minutes
+        'speaking_time'           => 10,     // minutes
+        'avg_words_per_sentence'  => 17.6,
+        'avg_words_per_paragraph' => 125,
+    )
+    ```
+  </Tab>
+
+  <Tab title="Recommendations">
+    Auto-generated based on metrics:
+    - Word count warnings (below 300) / praise (1500+)
+    - Lexical diversity tips (below 40%)
+    - Sentence length warnings (>25 avg)
+    - Paragraph length warnings (>150 avg)
+    - Table of contents suggestions (>10 min read)
+  </Tab>
+</Tabs>
+
+### Prominent Words
+
+```php
+$insights['prominent_words']; // Top 10 non-stop words (4+ chars)
+// array( 'optimization', 'content', 'search', 'ranking', ... )
+```
+
+---
+
+## 4. Internal Linking
+
+**File:** `includes/analyzers/class-internal-linking.php`
+
+Suggests relevant internal links based on keyword matching.
+
+### Usage
+
+```php
+use GeoAI\Analyzers\Internal_Linking;
+
+$analyzer = new Internal_Linking();
+$suggestions = $analyzer->get_suggestions( $post_id, $content );
+```
+
+### How It Works
+
+<Steps>
+  <Step title="Extract Keywords">
+    Analyzes content to extract top 20 keywords (excluding stop words), weighted by frequency.
+  </Step>
+  
+  <Step title="Find Related Posts">
+    Searches database for published posts/pages containing those keywords in title or content.
+    
+    ```sql
+    SELECT ID, post_title, post_content, post_type, post_date
+    FROM wp_posts
+    WHERE ID != current_post
+    AND post_status = 'publish'
+    AND (post_title REGEXP 'keyword1|keyword2|...'
+         OR post_content REGEXP 'keyword1|keyword2|...')
+    LIMIT 50
+    ```
+  </Step>
+  
+  <Step title="Calculate Relevance">
+    Scores each post based on:
+    - **Title matches:** 2× weight
+    - **Content matches:** 1× weight (capped at 5 mentions)
+    - Normalized to 0-1 scale
+    
+    Minimum 30% relevance required.
+  </Step>
+  
+  <Step title="Rank & Return">
+    Returns top 10 suggestions sorted by relevance.
+  </Step>
+</Steps>
+
+### Suggestion Data
+
+```php
+array(
+    'post_id'    => 123,
+    'title'      => 'Complete SEO Guide',
+    'url'        => 'https://example.com/seo-guide',
+    'excerpt'    => 'Search engine optimization is...',
+    'relevance'  => 0.85,              // 0-1 scale
+    'anchor'     => 'Complete SEO Guide', // Suggested anchor text
+    'post_type'  => 'post',
+    'categories' => array( 'SEO', 'Guides' ),
+)
+```
+
+### Helper Methods
+
+```php
+// Check if content already links to a post
+$analyzer->already_linked( $content, $target_post_id );
+
+// Get link statistics
+$stats = $analyzer->get_link_stats( $content );
+// Returns: array( 'internal' => 5, 'external' => 3, 'total' => 8 )
+```
+
+---
+
+## 5. SEO Dashboard
+
+**File:** `includes/analyzers/class-seo-dashboard.php`
+
+Provides site-wide SEO health analysis and statistics.
+
+### Usage
+
+```php
+use GeoAI\Analyzers\SEO_Dashboard;
+
+$dashboard = new SEO_Dashboard();
+$data = $dashboard->get_dashboard_data();
+```
+
+<Info>
+  Dashboard data is cached for 5 minutes using WordPress transients. Cache is automatically cleared when posts are saved or deleted.
+</Info>
+
+### Dashboard Data Structure
+
+<CodeGroup>
+```php Overall Score
+$data['overall_score']; // 0-100
+// Calculated by deducting points for issues:
+// - Critical: -15 points
+// - High: -10 points
+// - Medium: -5 points
+// - Low: -2 points
+```
+
+```php Site Issues
+$data['issues']; // Array of site-wide problems
+array(
+    array(
+        'id'       => 'posts_no_meta',
+        'severity' => 'high',
+        'count'    => 45,
+        'message'  => '45 posts are missing meta descriptions.',
+        'action'   => 'admin.php?page=geoai-bulk-editor',
+    ),
+    // Other issue types:
+    // - duplicate_titles
+    // - low_word_count
+    // - no_focus_keyword
+    // - readability_issues
+)
+```
+
+```php Post Statistics
+$data['post_stats'];
+array(
+    'total_posts'        => 150,
+    'with_meta'          => 105,
+    'with_keyword'       => 98,
+    'meta_percentage'    => 70,
+    'keyword_percentage' => 65,
+)
+```
+
+```php Score Distribution
+$data['score_distribution'];
+array(
+    'excellent' => array(
+        'min'         => 80,
+        'max'         => 100,
+        'keyword'     => 25,  // Posts with keyword score 80-100
+        'readability' => 30,  // Posts with readability score 80-100
+    ),
+    'good'      => array( 'min' => 60, 'max' => 79, ... ),
+    'fair'      => array( 'min' => 40, 'max' => 59, ... ),
+    'poor'      => array( 'min' => 0,  'max' => 39, ... ),
+)
+```
+
+```php Activity & Rankings
+$data['recent_activity'];    // 5 most recently modified posts
+$data['top_performers'];     // 5 highest scoring posts (≥80)
+$data['needs_attention'];    // 5 lowest scoring posts (<60)
+$data['recommendations'];    // Action items based on issues
+```
+</CodeGroup>
+
+### Performance Optimization
+
+<Warning>
+  Dashboard queries use SQL aggregation instead of PHP loops for performance. Tested on sites with 10,000+ posts.
+</Warning>
+
+```php
+// Example: Efficient score distribution query
+$wpdb->get_row(
+    "SELECT 
+        SUM(CASE WHEN CAST(pm.meta_value AS UNSIGNED) >= 80 THEN 1 ELSE 0 END) as excellent,
+        SUM(CASE WHEN CAST(pm.meta_value AS UNSIGNED) BETWEEN 60 AND 79 THEN 1 ELSE 0 END) as good,
+        SUM(CASE WHEN CAST(pm.meta_value AS UNSIGNED) BETWEEN 40 AND 59 THEN 1 ELSE 0 END) as fair,
+        SUM(CASE WHEN CAST(pm.meta_value AS UNSIGNED) < 40 THEN 1 ELSE 0 END) as poor
+    FROM {$wpdb->posts} p
+    INNER JOIN {$wpdb->postmeta} pm ON p.ID = pm.post_id
+    WHERE p.post_status = 'publish'
+    AND pm.meta_key = '_geoai_keyword_score'",
+    ARRAY_A
+);
+```
+
+---
+
+## Extending Analyzers
+
+Create custom analyzers by following the base pattern:
+
+```php
+<?php
+namespace GeoAI\Analyzers;
+
+class Custom_Analyzer {
+    public function analyze( $input ) {
+        $issues = array();
+        $score = 0;
+        $max_score = 100;
+        
+        // Your analysis logic
+        $result = $this->check_something( $input );
+        $score += $result['score'];
+        if ( ! empty( $result['issue'] ) ) {
+            $issues[] = $result['issue'];
+        }
+        
+        return array(
+            'score'  => round( ( $score / $max_score ) * 100 ),
+            'issues' => $issues,
+            // custom data
+        );
+    }
+    
+    private function check_something( $input ) {
+        return array(
+            'score' => 20,
+            'issue' => array(
+                'id'       => 'unique_issue_id',
+                'severity' => 'warning', // good, ok, warning, error, critical
+                'message'  => __( 'Issue description', 'geo-ai' ),
+            ),
+        );
+    }
+}
+```
+
+<Tip>
+  All analyzer output should include translatable strings using WordPress i18n functions (`__()`, `_n()`, `sprintf()`).
+</Tip>
+
+---
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="WP-CLI Commands" icon="terminal" href="/advanced/wp-cli">
+    Run analyzers from command line
+  </Card>
+  <Card title="Hooks & Filters" icon="filter" href="/advanced/hooks-filters">
+    Customize analyzer behavior
+  </Card>
+  <Card title="API Reference" icon="code" href="/api-reference/endpoints">
+    REST API endpoints for analyzers
+  </Card>
+  <Card title="Architecture" icon="sitemap" href="/developer-guide/architecture">
+    Plugin structure overview
+  </Card>
+</CardGroup>

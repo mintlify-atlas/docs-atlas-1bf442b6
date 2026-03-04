@@ -1,0 +1,447 @@
+---
+title: Answer Card Block
+description: Gutenberg block for TL;DR summaries with key facts, optimized for AI answer engines
+---
+
+## Overview
+
+The **Answer Card** is a custom Gutenberg block that displays a concise TL;DR summary with structured key facts. Designed specifically for AI answer engines like Google AI Overviews, Perplexity, and ChatGPT.
+
+<Info>
+  Answer Cards provide AI engines with clearly structured, extractable content that's more likely to appear in AI-generated responses.
+</Info>
+
+## Why Answer Cards Matter
+
+AI answer engines prioritize content that:
+- Provides direct, concise answers to user queries
+- Uses structured formats (lists, facts, summaries)
+- Appears early in the content
+- Is semantically marked up
+
+The Answer Card addresses all of these requirements in a single, reusable block.
+
+## Adding an Answer Card
+
+<Tabs>
+  <Tab title="Via Quick Fix">
+    <Steps>
+      <Step title="Run AI Audit">
+        Click **"Run AI Audit"** in the GEO AI sidebar panel.
+      </Step>
+      
+      <Step title="Check Issues">
+        Look for the `missing_tldr` issue in the audit results.
+      </Step>
+      
+      <Step title="Apply Fix">
+        Click **"Apply Quick Fix"** next to the issue.
+      </Step>
+      
+      <Step title="Customize Content">
+        Edit the auto-generated TL;DR and key facts to match your content.
+      </Step>
+    </Steps>
+  </Tab>
+  
+  <Tab title="Manually">
+    <Steps>
+      <Step title="Open Block Inserter">
+        In the Gutenberg editor, click the **+** button to add a new block.
+      </Step>
+      
+      <Step title="Search for Block">
+        Type **"Answer Card"** in the search box.
+      </Step>
+      
+      <Step title="Insert Block">
+        Click on the **Answer Card** block to insert it.
+      </Step>
+      
+      <Step title="Add Content">
+        Fill in the TL;DR summary and add key facts using the **"Add Key Fact"** button.
+      </Step>
+    </Steps>
+  </Tab>
+</Tabs>
+
+## Block Structure
+
+The Answer Card consists of two main sections:
+
+<CardGroup cols={2}>
+  <Card title="TL;DR Summary" icon="align-left">
+    A concise summary (max 200 words recommended) that directly answers the main question or topic of your content.
+  </Card>
+  
+  <Card title="Key Facts" icon="list">
+    Bulleted list of important facts, statistics, or takeaways. Each fact should be one clear, standalone statement.
+  </Card>
+</CardGroup>
+
+## Implementation Details
+
+### Block Registration
+
+```json title="blocks/answer-card/block.json"
+{
+  "$schema": "https://schemas.wp.org/trunk/block.json",
+  "apiVersion": 3,
+  "name": "geoai/answer-card",
+  "version": "1.0.0",
+  "title": "Answer Card",
+  "category": "text",
+  "icon": "info",
+  "description": "A concise TL;DR summary with key facts optimized for AI answer engines.",
+  "supports": {
+    "html": false,
+    "align": true
+  },
+  "attributes": {
+    "tldr": {
+      "type": "string",
+      "default": ""
+    },
+    "keyFacts": {
+      "type": "array",
+      "default": []
+    }
+  },
+  "textdomain": "geo-ai",
+  "editorScript": "file:./index.js",
+  "editorStyle": "file:./editor.css",
+  "style": "file:./style.css"
+}
+```
+
+### Edit Component
+
+The editor interface uses WordPress block editor components:
+
+```javascript title="blocks/answer-card/edit.js" showLineNumbers
+import { useBlockProps, RichText } from '@wordpress/block-editor';
+import { Button } from '@wordpress/components';
+import { __ } from '@wordpress/i18n';
+
+export default function Edit({ attributes, setAttributes }) {
+    const { tldr, keyFacts } = attributes;
+
+    const addKeyFact = () => {
+        setAttributes({
+            keyFacts: [...keyFacts, ''],
+        });
+    };
+
+    const updateKeyFact = (index, value) => {
+        const newKeyFacts = [...keyFacts];
+        newKeyFacts[index] = value;
+        setAttributes({ keyFacts: newKeyFacts });
+    };
+
+    const removeKeyFact = (index) => {
+        const newKeyFacts = keyFacts.filter((_, i) => i !== index);
+        setAttributes({ keyFacts: newKeyFacts });
+    };
+
+    return (
+        <div {...useBlockProps()}>
+            <div className="geoai-answer-card geoai-answer-card-editor">
+                <div className="geoai-answer-card-header">
+                    <h3>{__('TL;DR', 'geo-ai')}</h3>
+                </div>
+                <div className="geoai-answer-card-body">
+                    <RichText
+                        tagName="p"
+                        value={tldr}
+                        onChange={(value) => setAttributes({ tldr: value })}
+                        placeholder={__(
+                            'Enter a concise summary (max 200 words)...',
+                            'geo-ai'
+                        )}
+                        className="geoai-answer-card-tldr"
+                    />
+
+                    <div className="geoai-answer-card-facts">
+                        <h4>{__('Key Facts', 'geo-ai')}</h4>
+                        <ul>
+                            {keyFacts.map((fact, index) => (
+                                <li key={index}>
+                                    <RichText
+                                        tagName="span"
+                                        value={fact}
+                                        onChange={(value) =>
+                                            updateKeyFact(index, value)
+                                        }
+                                        placeholder={__(
+                                            'Enter key fact...',
+                                            'geo-ai'
+                                        )}
+                                    />
+                                    <Button
+                                        isSmall
+                                        isDestructive
+                                        onClick={() => removeKeyFact(index)}
+                                    >
+                                        {__('Remove', 'geo-ai')}
+                                    </Button>
+                                </li>
+                            ))}
+                        </ul>
+                        <Button isPrimary isSmall onClick={addKeyFact}>
+                            {__('Add Key Fact', 'geo-ai')}
+                        </Button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+```
+
+### Save Component
+
+The saved output creates clean, semantic HTML:
+
+```javascript title="blocks/answer-card/save.js" showLineNumbers
+import { useBlockProps, RichText } from '@wordpress/block-editor';
+import { __ } from '@wordpress/i18n';
+
+export default function save({ attributes }) {
+    const { tldr, keyFacts } = attributes;
+
+    return (
+        <div {...useBlockProps.save()}>
+            <div className="geoai-answer-card">
+                <div className="geoai-answer-card-header">
+                    <h3>{__('TL;DR', 'geo-ai')}</h3>
+                </div>
+                <div className="geoai-answer-card-body">
+                    <RichText.Content
+                        tagName="p"
+                        value={tldr}
+                        className="geoai-answer-card-tldr"
+                    />
+
+                    {keyFacts && keyFacts.length > 0 && (
+                        <div className="geoai-answer-card-facts">
+                            <h4>{__('Key Facts', 'geo-ai')}</h4>
+                            <ul>
+                                {keyFacts.map((fact, index) => (
+                                    <li key={index}>
+                                        <RichText.Content
+                                            tagName="span"
+                                            value={fact}
+                                        />
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
+```
+
+## Frontend Output
+
+The block renders with semantic HTML structure:
+
+```html
+<div class="wp-block-geoai-answer-card">
+  <div class="geoai-answer-card">
+    <div class="geoai-answer-card-header">
+      <h3>TL;DR</h3>
+    </div>
+    <div class="geoai-answer-card-body">
+      <p class="geoai-answer-card-tldr">
+        WordPress SEO optimization for AI involves structured content,
+        semantic markup, and direct answers to user queries.
+      </p>
+      <div class="geoai-answer-card-facts">
+        <h4>Key Facts</h4>
+        <ul>
+          <li><span>AI engines prioritize concise, structured content</span></li>
+          <li><span>TL;DR summaries increase AI visibility by 40%</span></li>
+          <li><span>Schema markup helps AI understand context</span></li>
+          <li><span>Answer Cards improve user engagement</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+```
+
+## Styling
+
+The block includes default styles that can be customized:
+
+```css title="blocks/answer-card/style.css"
+.geoai-answer-card {
+  background: #f0f6fc;
+  border-left: 4px solid #667eea;
+  border-radius: 8px;
+  padding: 24px;
+  margin: 32px 0;
+}
+
+.geoai-answer-card-header h3 {
+  margin: 0 0 16px;
+  color: #667eea;
+  font-size: 1.2em;
+  font-weight: 600;
+}
+
+.geoai-answer-card-tldr {
+  font-size: 1.1em;
+  line-height: 1.6;
+  margin-bottom: 20px;
+}
+
+.geoai-answer-card-facts h4 {
+  margin: 20px 0 12px;
+  font-size: 1em;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.geoai-answer-card-facts ul {
+  list-style: none;
+  padding-left: 0;
+  margin: 0;
+}
+
+.geoai-answer-card-facts li {
+  position: relative;
+  padding-left: 28px;
+  margin-bottom: 12px;
+}
+
+.geoai-answer-card-facts li::before {
+  content: "✓";
+  position: absolute;
+  left: 0;
+  color: #667eea;
+  font-weight: bold;
+}
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Keep TL;DR Concise">
+    Limit your TL;DR to **150-200 words**. AI engines prefer quick, scannable answers.
+    
+    **Good Example:**
+    > WordPress performance optimization involves caching, image compression, and database optimization. Implement a CDN, minify assets, and use lazy loading to reduce page load times by 50-70%.
+    
+    **Bad Example:**
+    > In this comprehensive guide, we'll explore various techniques and strategies for optimizing WordPress performance, including but not limited to caching mechanisms, image optimization strategies, database query optimization, and more...
+  </Accordion>
+  
+  <Accordion title="Make Facts Standalone">
+    Each key fact should be understandable on its own without additional context.
+    
+    **Good Example:**
+    - Page load time affects SEO rankings
+    - Caching reduces server load by 80%
+    - Mobile optimization is required for Google rankings
+    
+    **Bad Example:**
+    - It's important
+    - You should do this
+    - This helps performance
+  </Accordion>
+  
+  <Accordion title="Place Early in Content">
+    Add the Answer Card near the **top of your content** (after introduction, before main body). AI engines scan early content more heavily.
+  </Accordion>
+  
+  <Accordion title="Use Numbers and Data">
+    Include specific statistics or numbers in key facts when possible:
+    - "Increases traffic by 40%" (better than "Increases traffic")
+    - "Load time under 2 seconds" (better than "Fast load time")
+  </Accordion>
+  
+  <Accordion title="Limit Key Facts">
+    Include **3-7 key facts**. Too many facts dilute importance; too few miss opportunities.
+  </Accordion>
+</AccordionGroup>
+
+## Customization
+
+### Custom Styling
+
+Override default styles in your theme:
+
+```css title="style.css"
+/* Custom Answer Card styling */
+.geoai-answer-card {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  box-shadow: 0 10px 40px rgba(102, 126, 234, 0.2);
+}
+
+.geoai-answer-card-header h3 {
+  color: white;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.geoai-answer-card-facts li::before {
+  content: "→";
+  color: #fbbf24;
+}
+```
+
+### Programmatic Creation
+
+Create Answer Card blocks programmatically:
+
+```php
+$answer_card_block = '
+<!-- wp:geoai/answer-card {"tldr":"Your TL;DR summary here","keyFacts":["Fact 1","Fact 2","Fact 3"]} /-->
+';
+
+$post_content = $answer_card_block . $existing_content;
+
+wp_update_post([
+    'ID' => $post_id,
+    'post_content' => $post_content,
+]);
+```
+
+## Accessibility
+
+The Answer Card is fully accessible:
+
+- Semantic HTML structure (`<h3>`, `<h4>`, `<ul>`, `<li>`)
+- Proper heading hierarchy
+- Screen reader friendly
+- Keyboard navigable
+- WCAG 2.1 AA compliant color contrast
+
+## Performance
+
+The block is optimized for performance:
+- Zero JavaScript on frontend
+- Minimal CSS footprint (~2KB)
+- No external dependencies
+- Works without block editor
+
+## Related Features
+
+<CardGroup cols={3}>
+  <Card title="AI Audit" icon="robot" href="./ai-audit">
+    Analyze content for AI visibility
+  </Card>
+  
+  <Card title="Schema Markup" icon="code" href="./schema">
+    Add structured data markup
+  </Card>
+  
+  <Card title="Meta Titles" icon="heading" href="./meta-titles">
+    Optimize titles and descriptions
+  </Card>
+</CardGroup>

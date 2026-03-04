@@ -1,0 +1,640 @@
+---
+title: Configuration
+description: Complete guide to configuring GEO AI settings including API keys, title templates, social cards, schema, sitemaps, and advanced options
+---
+
+GEO AI provides a comprehensive settings panel in **Settings → GEO AI** with 10 configuration tabs. This guide covers all available options.
+
+---
+
+## General Settings
+
+Core configuration for API access and plugin behavior.
+
+### Google Gemini API Key
+
+<Steps>
+  <Step title="Enter Your API Key">
+    Paste your Google Gemini API key obtained from [Google AI Studio](https://makersuite.google.com/app/apikey).
+  </Step>
+
+  <Step title="Test Connection">
+    Click **Test Connection** to verify the key works before saving.
+  </Step>
+
+  <Step title="Save">
+    Click **Save Changes** to encrypt and store the key.
+  </Step>
+</Steps>
+
+<Info>
+API keys are encrypted using libsodium when available, with XOR obfuscation fallback on older systems.
+</Info>
+
+### Auto-run Audit
+
+```plaintext
+☐ Run AI audit automatically when publishing or updating posts
+```
+
+- **Enabled**: Every post publish/update triggers an automatic audit
+- **Disabled**: Audits only run when manually triggered from editor sidebar
+
+<Warning>
+Auto-run may slow down post saves if you have very long content. Consider disabling for sites with 5,000+ word posts.
+</Warning>
+
+### Compatibility Mode
+
+```plaintext
+○ Standalone (Full Control)
+○ Coexist (Suppress Overlapping Outputs)
+```
+
+**Standalone Mode**:
+- GEO AI outputs all meta tags, schema, and SEO features
+- Use when GEO AI is your **only** SEO plugin
+
+**Coexist Mode**:
+- GEO AI detects other SEO plugins (Yoast, Rank Math, SEOPress, All in One SEO)
+- Suppresses duplicate outputs to prevent conflicts
+- Allows GEO AI to run alongside existing SEO tools
+
+<Tip>
+If you see duplicate meta tags in your page source, switch to Coexist mode.
+</Tip>
+
+---
+
+## Titles & Meta
+
+Configure title tag and meta description templates with dynamic variables.
+
+### Available Variables
+
+<CodeGroup>
+```plaintext Content Variables
+%%title%%         Post/page title
+%%excerpt%%       Post excerpt
+%%primary_cat%%   Primary category name
+%%category%%      First category name
+%%tag%%           First tag name
+```
+
+```plaintext Site Variables
+%%sitename%%      Site title
+%%sitedesc%%      Site tagline
+%%sep%%           Separator (| or -)
+```
+
+```plaintext Date Variables
+%%date%%          Publish date (Y-m-d)
+%%year%%          Current year
+%%monthname%%     Month name (January, February...)
+```
+
+```plaintext Archive Variables
+%%archive_title%% Archive page title
+%%term_name%%     Taxonomy term name
+%%author%%        Author display name
+%%searchphrase%%  Search query
+```
+</CodeGroup>
+
+### Template Configuration
+
+<Accordion title="Post Title Template">
+  **Default**: `%%title%% %%sep%% %%sitename%%`
+
+  **Example Output**: "How to Install WordPress | My Site"
+
+  **Best Practices**:
+  - Keep under 60 characters for full display in SERPs
+  - Place most important keywords first
+  - Include branding (%%sitename%%) at the end
+</Accordion>
+
+<Accordion title="Page Title Template">
+  **Default**: `%%title%% %%sep%% %%sitename%%`
+
+  **Example Output**: "About Us | My Site"
+
+  **Best Practices**:
+  - Similar to posts, but pages often have shorter titles
+  - Consider removing %%sitename%% for landing pages
+</Accordion>
+
+<Accordion title="Archive Title Template">
+  **Default**: `%%archive_title%% %%sep%% %%sitename%%`
+
+  **Example Output**: "WordPress Category | My Site"
+
+  **Variables Available**:
+  - `%%archive_title%%`: Auto-generates appropriate archive title
+  - `%%term_name%%`: Taxonomy term name
+  - `%%author%%`: Author name for author archives
+</Accordion>
+
+<Accordion title="Search Results Template">
+  **Default**: `Search Results for "%%searchphrase%%" %%sep%% %%sitename%%`
+
+  **Example Output**: `Search Results for "wordpress seo" | My Site`
+</Accordion>
+
+<Accordion title="404 Page Template">
+  **Default**: `Page not found %%sep%% %%sitename%%`
+
+  **Best Practice**: Keep this simple and include a helpful message
+</Accordion>
+
+<Accordion title="Homepage Title Template">
+  **Default**: `%%sitename%% %%sep%% %%sitedesc%%`
+
+  **Example Output**: "My WordPress Site | Just another WordPress site"
+
+  **Tip**: Customize this for better branding on your homepage
+</Accordion>
+
+### Meta Description Templates
+
+Same variables available as title templates. Defaults:
+
+- **Post**: `%%excerpt%%`
+- **Page**: `%%excerpt%%`  
+- **Archive**: First 160 characters of archive description
+
+<Note>
+Meta descriptions should be 150-160 characters for optimal display in search results.
+</Note>
+
+---
+
+## Social Settings
+
+Configure OpenGraph (Facebook) and Twitter Card defaults.
+
+### OpenGraph Defaults
+
+<Steps>
+  <Step title="Default OG Image">
+    Upload a default image (1200×630px recommended) for pages without featured images.
+  </Step>
+
+  <Step title="Default OG Title">
+    Leave blank to use the page title, or set a custom default.
+  </Step>
+
+  <Step title="Default OG Description">
+    Leave blank to use meta description, or set a custom default.
+  </Step>
+</Steps>
+
+### Twitter Card Defaults
+
+```plaintext
+Card Type:
+○ Summary
+○ Summary with Large Image (recommended)
+```
+
+**Twitter Site**: Your site's Twitter handle (e.g., `@yoursite`)  
+**Twitter Creator**: Default author Twitter handle
+
+<Info>
+These defaults apply when individual posts don't have custom social meta configured.
+</Info>
+
+---
+
+## Schema Settings
+
+Enable and configure JSON-LD structured data types.
+
+### Available Schema Types
+
+<Accordion title="Article Schema">
+  **Default**: Enabled
+
+  Automatically adds Article schema to all posts with:
+  - Headline
+  - Author
+  - Date published/modified
+  - Featured image
+  - Publisher organization
+</Accordion>
+
+<Accordion title="FAQ Schema">
+  **Default**: Disabled
+
+  Enable for posts that contain FAQ content. GEO AI will look for:
+  - Heading + paragraph pairs
+  - HTML `<dl>` lists
+  - FAQ blocks
+</Accordion>
+
+<Accordion title="HowTo Schema">
+  **Default**: Disabled
+
+  Enable for tutorial/how-to posts. GEO AI extracts steps from:
+  - Ordered lists
+  - Step blocks
+  - Headings with numbered steps
+</Accordion>
+
+<Accordion title="Product Schema">
+  **Default**: Disabled
+
+  Enable for product pages. Requires WooCommerce or manual product data entry.
+</Accordion>
+
+<Accordion title="LocalBusiness Schema">
+  **Default**: Disabled
+
+  Enable for local business sites. Configure:
+  - Business name
+  - Address
+  - Phone number
+  - Opening hours
+  - Service area
+</Accordion>
+
+<Accordion title="Organization Schema">
+  **Default**: Enabled
+
+  Sitewide organization schema with:
+  - Name
+  - Logo
+  - Social profile URLs
+  - Contact point
+</Accordion>
+
+<Accordion title="WebSite Schema">
+  **Default**: Enabled
+
+  Enables sitewide WebSite schema with SearchAction for sitelinks search box in Google.
+</Accordion>
+
+### Schema Conflict Detection
+
+<Warning>
+GEO AI detects when other plugins output schema and displays a warning. Check **Schema Conflicts** section in this tab to avoid duplicate structured data.
+</Warning>
+
+---
+
+## Sitemap Settings
+
+Configure XML sitemap generation.
+
+### Enable Sitemaps
+
+```plaintext
+☑ Generate XML sitemaps
+```
+
+When enabled, your sitemap index is available at:
+```
+https://yoursite.com/sitemap.xml
+```
+
+### Post Types to Include
+
+Check which post types to include:
+
+```plaintext
+☑ Posts
+☑ Pages
+☐ Custom Post Type 1
+☐ Custom Post Type 2
+```
+
+### Taxonomies to Include
+
+```plaintext
+☑ Categories
+☑ Tags
+☐ Custom Taxonomy 1
+```
+
+### Additional Options
+
+<CodeGroup>
+```plaintext Image URLs
+☑ Add image URLs to sitemap
+```
+
+```plaintext Ping Search Engines
+☐ Ping Google on sitemap update
+☐ Ping Bing on sitemap update
+```
+</CodeGroup>
+
+<Note>
+Pinging is optional. Search engines typically discover sitemap updates automatically via Search Console submissions.
+</Note>
+
+---
+
+## Crawlers & Robots
+
+Control which AI bots can access your content.
+
+### Block AI Crawlers
+
+Select which bots to block:
+
+```plaintext
+☐ PerplexityBot (Perplexity AI)
+☐ GPTBot (OpenAI/ChatGPT)
+☐ CCBot (Common Crawl)
+☐ anthropic-ai (Anthropic/Claude)
+```
+
+### Generated robots.txt Rules
+
+When you check a bot, GEO AI generates the appropriate rules:
+
+```plaintext robots.txt
+User-agent: PerplexityBot
+Disallow: /
+
+User-agent: GPTBot  
+Disallow: /
+
+User-agent: CCBot
+Disallow: /
+
+User-agent: anthropic-ai
+Disallow: /
+```
+
+<Warning>
+**Important Caveats**:
+- GEO AI does **not** write server files - you must manually add these rules
+- AI bots may not respect robots.txt directives
+- Blocking may reduce your visibility in AI answer engines
+</Warning>
+
+### HTTP Header Snippets
+
+For server administrators, GEO AI also displays HTTP header equivalents:
+
+```apache .htaccess (Apache)
+SetEnvIfNoCase User-Agent "PerplexityBot" bad_bot
+SetEnvIfNoCase User-Agent "GPTBot" bad_bot
+Order Allow,Deny
+Allow from all
+Deny from env=bad_bot
+```
+
+```nginx nginx.conf (Nginx)
+if ($http_user_agent ~* (PerplexityBot|GPTBot|CCBot|anthropic-ai)) {
+    return 403;
+}
+```
+
+---
+
+## Redirects & 404
+
+Manage URL redirects and monitor 404 errors.
+
+### Redirect Manager
+
+<Steps>
+  <Step title="Add New Redirect">
+    Click **Add New Redirect** button.
+  </Step>
+
+  <Step title="Enter Source URL">
+    The old/broken URL path (e.g., `/old-page`)
+  </Step>
+
+  <Step title="Enter Destination URL">
+    The new URL to redirect to (e.g., `/new-page`)
+  </Step>
+
+  <Step title="Choose Redirect Type">
+    - **301 (Permanent)**: For permanent moves - passes SEO value
+    - **302 (Temporary)**: For temporary redirects - does not pass full SEO value
+  </Step>
+
+  <Step title="Wildcard Support">
+    Use `*` for wildcard matching:
+    - `/blog/*` → `/news/*` redirects all blog paths to news
+  </Step>
+</Steps>
+
+### 404 Monitor
+
+```plaintext
+☐ Enable 404 logging
+```
+
+**Settings**:
+- **Retention**: Days to keep logs (default: 30)
+- **Max Logs**: Maximum number of entries (default: 1,000)
+
+<Info>
+404 logs are stored in a custom database table (`wp_geoai_404_log`) and include:
+- URL requested
+- Referrer
+- IP address
+- Timestamp
+</Info>
+
+<Warning>
+404 logging is opt-in. Only enable if you need it for diagnosing broken links.
+</Warning>
+
+---
+
+## Bulk Editor
+
+<Note>
+Coming in v1.1 - this tab is currently a placeholder.
+</Note>
+
+Planned features:
+- Inline edit titles and meta descriptions for all posts
+- Filter by post type, date, category
+- CSV import/export
+
+---
+
+## Tools
+
+Import, export, and migration utilities.
+
+### Import from Other SEO Plugins
+
+<Steps>
+  <Step title="Select Source Plugin">
+    Choose from:
+    - Yoast SEO
+    - Rank Math
+    - SEOPress
+    - All in One SEO
+  </Step>
+
+  <Step title="Preview Import">
+    GEO AI shows what will be imported (titles, meta, redirects, etc.)
+  </Step>
+
+  <Step title="Run Import">
+    Click **Import** to pull settings and post meta from the other plugin.
+  </Step>
+</Steps>
+
+<Warning>
+Import does **not** delete data from the source plugin. You must manually deactivate the old plugin after verifying the import.
+</Warning>
+
+### Export Settings
+
+```plaintext
+[Export All Settings]
+```
+
+Downloads a JSON file containing:
+- All GEO AI configuration
+- Title/meta templates
+- Social defaults
+- Schema settings
+- Sitemap configuration
+- Redirects
+
+<Tip>
+Export settings before major updates or when migrating to a new server.
+</Tip>
+
+### Import Settings
+
+```plaintext
+[Choose File] [Import]
+```
+
+Restore settings from a previously exported JSON file.
+
+### Clear Cache
+
+```plaintext
+[Clear All GEO AI Cache]
+```
+
+Clears cached audit results and transients.
+
+---
+
+## Advanced Settings
+
+Advanced configuration and debugging options.
+
+### Debug Mode
+
+```plaintext
+☐ Enable debug mode
+```
+
+When enabled:
+- Logs API requests/responses
+- Shows detailed error messages in editor sidebar
+- Adds debug info to browser console
+- Logs saved to `wp-content/debug.log` (if `WP_DEBUG_LOG` is enabled)
+
+<Warning>
+Only enable debug mode when troubleshooting. It may expose sensitive data in logs.
+</Warning>
+
+### Role Capabilities
+
+Configure which user roles can:
+- **Manage GEO AI Settings**: Access settings page (`manage_geoai`)
+- **Edit SEO Meta**: Edit per-post SEO fields (`edit_geoai_meta`)
+
+**Default**: Only Administrators have these capabilities.
+
+<Steps>
+  <Step title="Select Role">
+    Choose user role (Editor, Author, Contributor, etc.)
+  </Step>
+
+  <Step title="Grant Capabilities">
+    Check which capabilities to grant:
+    - `☐ Manage GEO AI Settings`
+    - `☐ Edit GEO AI Meta`
+  </Step>
+
+  <Step title="Save Changes">
+    Capabilities are added to the role immediately.
+  </Step>
+</Steps>
+
+<Warning>
+`manage_geoai` grants access to API keys. Only grant to trusted users.
+</Warning>
+
+---
+
+## Settings Best Practices
+
+<Tip>
+**After Initial Configuration**:
+1. Run audits on 5-10 existing posts to test
+2. Check page source for duplicate meta tags
+3. Verify sitemap loads without errors
+4. Submit sitemap to Google Search Console
+5. Monitor 404 logs for the first week if enabled
+</Tip>
+
+<Tip>
+**Title Template Optimization**:
+- Keep templates under 60 characters total
+- Put target keywords in `%%title%%`, not template
+- Use `|` separator for better readability than `-`
+- Test templates with long and short post titles
+</Tip>
+
+<Tip>
+**Schema Strategy**:
+- Enable Article schema for blogs
+- Enable FAQ/HowTo only if you regularly publish that content type
+- Test schema with [Google Rich Results Test](https://search.google.com/test/rich-results)
+- Monitor Search Console for schema errors
+</Tip>
+
+---
+
+## Configuration Checklist
+
+After configuring GEO AI, verify:
+
+- [ ] API key saved and tested
+- [ ] Compatibility mode set correctly (Standalone vs Coexist)
+- [ ] Title templates configured for all post types
+- [ ] Social defaults set (OG image, Twitter card type)
+- [ ] Schema types enabled based on content
+- [ ] Sitemap enabled and accessible at `/sitemap.xml`
+- [ ] Permalinks flushed (Settings → Permalinks → Save)
+- [ ] Test audit run on at least one post
+- [ ] Page source checked for duplicate meta tags
+- [ ] Sitemap submitted to Google Search Console
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="SEO Dashboard" icon="chart-line" href="/advanced/analyzers">
+    Monitor site-wide AI answerability scores
+  </Card>
+  <Card title="Answer Card Block" icon="square-check" href="/features/answer-card">
+    Optimize content with Answer Card blocks
+  </Card>
+  <Card title="Schema Guide" icon="code" href="/features/schema">
+    Deep dive into structured data configuration
+  </Card>
+  <Card title="WP-CLI Commands" icon="terminal" href="/advanced/wp-cli">
+    Automate audits with WP-CLI
+  </Card>
+</CardGroup>

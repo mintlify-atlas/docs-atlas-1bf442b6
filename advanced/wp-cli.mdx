@@ -1,0 +1,526 @@
+---
+title: 'WP-CLI Commands'
+description: 'Command-line interface for running SEO audits and managing GEO AI'
+icon: 'terminal'
+---
+
+GEO AI provides WP-CLI commands for bulk auditing, automation, and server-side SEO analysis.
+
+<Info>
+  **Prerequisites:** WP-CLI must be installed on your server. [Learn more](https://wp-cli.org/)
+</Info>
+
+**File:** `includes/class-geoai-cli.php`
+
+---
+
+## Installation Check
+
+Verify GEO AI's CLI commands are registered:
+
+```bash
+wp geoai
+```
+
+Expected output:
+```
+usage: wp geoai audit <post|all> [--min-score=<score>]
+
+See 'wp help geoai audit' for more information.
+```
+
+---
+
+## Commands
+
+### `wp geoai audit`
+
+Run SEO audits on posts via command line.
+
+<Tabs>
+  <Tab title="Single Post">
+    Audit a specific post by ID:
+    
+    ```bash
+    wp geoai audit 123
+    ```
+    
+    **Output:**
+    ```
+    Success: Post #123 audited. Score: 85/100
+    Issues:
+      - [warning] Focus keyword not found in meta description.
+      - [good] Focus keyword found in title.
+      - [good] Readability is good (Flesch score: 68.5).
+    ```
+    
+    **Parameters:**
+    - `<post_id>` - WordPress post ID (required)
+    
+    **What it does:**
+    1. Retrieves post content
+    2. Runs `GeoAI_Analyzer::analyze_post()`
+    3. Displays total score and all issues
+    4. Exits with code 0 on success, 1 on error
+  </Tab>
+
+  <Tab title="All Posts">
+    Audit all published posts:
+    
+    ```bash
+    wp geoai audit all
+    ```
+    
+    **Output:**
+    ```
+    Auditing posts  100% [============================] 0:02 / 0:02
+    Post #45 "SEO Guide": 92/100
+    Post #67 "WordPress Tips": 78/100
+    Post #89 "Content Strategy": 65/100
+    Success: Audit complete.
+    ```
+    
+    **What it does:**
+    1. Fetches all published posts (no limit)
+    2. Shows progress bar
+    3. Runs analyzer on each post
+    4. Logs scores to console
+    5. Saves results to post meta
+  </Tab>
+
+  <Tab title="Filtered Audit">
+    Audit all posts and only display those meeting a minimum score:
+    
+    ```bash
+    wp geoai audit all --min-score=80
+    ```
+    
+    **Output:**
+    ```
+    Auditing posts  100% [============================] 0:02 / 0:02
+    Post #45 "SEO Guide": 92/100
+    Post #123 "Best Practices": 87/100
+    Post #156 "Advanced SEO": 95/100
+    Success: Audit complete.
+    ```
+    
+    **Parameters:**
+    - `--min-score=<score>` - Minimum score threshold (0-100)
+    
+    **Use cases:**
+    - Find your top-performing content
+    - Identify posts ready for promotion
+    - Quality control for client deliverables
+  </Tab>
+</Tabs>
+
+---
+
+## Implementation Details
+
+### Source Code
+
+```php
+namespace GeoAI\CLI;
+
+class GeoAI_CLI {
+    /**
+     * Audit a post or all posts.
+     *
+     * ## OPTIONS
+     *
+     * <post|all>
+     * : Post ID or 'all' to audit all posts.
+     *
+     * [--min-score=<score>]
+     * : Minimum score threshold for 'all' mode.
+     *
+     * ## EXAMPLES
+     *
+     *     wp geoai audit 123
+     *     wp geoai audit all --min-score=80
+     */
+    public function audit( $args, $assoc_args ) {
+        $target    = $args[0] ?? 'all';
+        $min_score = $assoc_args['min-score'] ?? 0;
+
+        if ( 'all' === $target ) {
+            $this->audit_all( $min_score );
+        } else {
+            $this->audit_post( absint( $target ) );
+        }
+    }
+}
+
+// Register command
+\WP_CLI::add_command( 'geoai', __NAMESPACE__ . '\\GeoAI_CLI' );
+```
+
+### Error Handling
+
+```php
+private function audit_post( $post_id ) {
+    $analyzer = \GeoAI\Core\GeoAI_Analyzer::get_instance();
+    $result   = $analyzer->analyze_post( $post_id );
+
+    if ( is_wp_error( $result ) ) {
+        \WP_CLI::error( $result->get_error_message() );
+        // Exits with code 1
+    }
+
+    \WP_CLI::success(
+        sprintf(
+            'Post #%d audited. Score: %d/100',
+            $post_id,
+            $result['scores']['total']
+        )
+    );
+}
+```
+
+---
+
+## Usage Examples
+
+### Bulk Audit for Reporting
+
+Audit all posts and save output to CSV:
+
+```bash
+wp geoai audit all --format=csv > seo-scores.csv
+```
+
+<Warning>
+  Current version doesn't support `--format` flag. Planned for v1.1.
+</Warning>
+
+**Workaround with current version:**
+
+```bash
+wp geoai audit all 2>&1 | tee seo-audit-$(date +%Y%m%d).log
+```
+
+### Scheduled Audits
+
+Add to crontab for weekly SEO health checks:
+
+```bash
+# Every Monday at 2 AM
+0 2 * * 1 cd /var/www/html && wp geoai audit all --min-score=60 | mail -s "Low SEO Scores" admin@example.com
+```
+
+### CI/CD Integration
+
+Run audits in deployment pipeline:
+
+```yaml
+# .github/workflows/content-quality.yml
+name: Content Quality Check
+on:
+  push:
+    paths:
+      - 'content/**'
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install WordPress & GEO AI
+        run: |
+          # Setup WordPress environment
+          wp core install --url=example.com
+          wp plugin activate geo-ai
+      - name: Run SEO Audit
+        run: |
+          SCORE=$(wp geoai audit all --min-score=70)
+          if [ $? -ne 0 ]; then
+            echo "SEO audit failed minimum score"
+            exit 1
+          fi
+```
+
+### Quality Gates
+
+Reject posts below quality threshold:
+
+```bash
+#!/bin/bash
+POST_ID=$1
+MIN_SCORE=75
+
+RESULT=$(wp geoai audit $POST_ID 2>&1)
+SCORE=$(echo $RESULT | grep -oP 'Score: \K[0-9]+')
+
+if [ $SCORE -lt $MIN_SCORE ]; then
+    echo "❌ Post score ($SCORE) below minimum ($MIN_SCORE)"
+    exit 1
+else
+    echo "✅ Post meets quality standards ($SCORE/$MIN_SCORE)"
+    exit 0
+fi
+```
+
+---
+
+## Performance Considerations
+
+<CardGroup cols={2}>
+  <Card title="API Rate Limits" icon="clock">
+    Each audit calls Google Gemini API. Free tier limits:
+    - 60 requests/minute
+    - 1,500 requests/day
+    
+    For bulk audits, add delays:
+    ```bash
+    for id in $(wp post list --post_type=post --field=ID); do
+      wp geoai audit $id
+      sleep 2  # 2 second delay
+    done
+    ```
+  </Card>
+
+  <Card title="Memory Usage" icon="memory">
+    Bulk audits load all posts into memory. For 1000+ posts:
+    
+    ```bash
+    # Increase PHP memory limit
+    wp geoai audit all --allow-root \
+      --extra-php="-d memory_limit=512M"
+    ```
+  </Card>
+
+  <Card title="Progress Tracking" icon="bars-progress">
+    WP-CLI shows progress bars automatically:
+    
+    ```php
+    $progress = \WP_CLI\Utils
+        \make_progress_bar( 'Auditing posts', count( $posts ) );
+    
+    foreach ( $posts as $post ) {
+        // ... audit logic ...
+        $progress->tick();
+    }
+    
+    $progress->finish();
+    ```
+  </Card>
+
+  <Card title="Batch Processing" icon="layer-group">
+    For very large sites (5000+ posts):
+    
+    ```bash
+    # Process in batches of 100
+    for i in {0..50}; do
+      OFFSET=$((i * 100))
+      wp post list --post_type=post \
+        --posts_per_page=100 \
+        --offset=$OFFSET \
+        --field=ID | xargs -I {} wp geoai audit {}
+    done
+    ```
+  </Card>
+</CardGroup>
+
+---
+
+## Output Formats
+
+### Success Message
+
+```
+Success: Post #123 audited. Score: 85/100
+Issues:
+  - [error] Keyword density is too low (0.21%). Aim for 0.5-2.5%.
+  - [warning] 32% of sentences are too long (>20 words).
+  - [good] Focus keyword found in title.
+  - [good] Readability is good (Flesch score: 68.5).
+```
+
+### Error Messages
+
+```
+Error: Post not found.
+```
+
+```
+Error: Failed to analyze post: API request failed.
+```
+
+### Issue Severity Levels
+
+| Prefix | Severity | Color (in terminal) |
+|--------|----------|---------------------|
+| `[error]` | High priority fix | Red |
+| `[warning]` | Should fix | Yellow |
+| `[ok]` | Acceptable | Blue |
+| `[good]` | Performing well | Green |
+
+---
+
+## Extending WP-CLI
+
+Add custom subcommands to GEO AI:
+
+```php
+// In your theme/plugin
+add_action( 'cli_init', function() {
+    if ( ! class_exists( 'WP_CLI' ) ) {
+        return;
+    }
+    
+    WP_CLI::add_command( 'geoai export', function( $args, $assoc_args ) {
+        $posts = get_posts( array(
+            'post_type'      => 'post',
+            'posts_per_page' => -1,
+            'meta_key'       => '_geoai_keyword_score',
+        ));
+        
+        foreach ( $posts as $post ) {
+            $score = get_post_meta( $post->ID, '_geoai_keyword_score', true );
+            WP_CLI::line( sprintf( '%d,%s,%d', 
+                $post->ID, 
+                $post->post_title, 
+                $score 
+            ));
+        }
+        
+        WP_CLI::success( 'Export complete.' );
+    });
+});
+```
+
+Usage:
+```bash
+wp geoai export > scores.csv
+```
+
+---
+
+## Planned Commands (v1.1+)
+
+<Note>
+  The following commands are planned but not yet implemented:
+</Note>
+
+### `wp geoai fix`
+
+Apply automated quick fixes:
+
+```bash
+# Apply all auto-fixes to a post
+wp geoai fix 123 --all
+
+# Apply specific fixes
+wp geoai fix 123 --add-meta-description --fix-title-length
+
+# Dry run (show what would be fixed)
+wp geoai fix 123 --dry-run
+```
+
+### `wp geoai report`
+
+Generate SEO health reports:
+
+```bash
+# HTML report
+wp geoai report --format=html > seo-report.html
+
+# JSON for API consumption
+wp geoai report --format=json
+
+# Email report
+wp geoai report --email=admin@example.com
+```
+
+### `wp geoai clear-cache`
+
+Clear analyzer caches:
+
+```bash
+# Clear all GEO AI caches
+wp geoai clear-cache
+
+# Clear specific post cache
+wp geoai clear-cache --post=123
+```
+
+### `wp geoai settings`
+
+Manage settings via CLI:
+
+```bash
+# Get setting
+wp geoai settings get geoai_compat_mode
+
+# Set setting
+wp geoai settings set geoai_compat_mode coexist
+
+# Export settings
+wp geoai settings export > settings.json
+
+# Import settings
+wp geoai settings import settings.json
+```
+
+---
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Command not found">
+    **Error:** `Error: 'geoai' is not a registered wp command.`
+    
+    **Solutions:**
+    1. Verify GEO AI is active: `wp plugin list`
+    2. Check if WP-CLI constant is defined in CLI context
+    3. Ensure `class-geoai-cli.php` is loaded
+    4. Try: `wp cli cache clear`
+  </Accordion>
+
+  <Accordion title="API timeout on bulk audits">
+    **Error:** `Error: Failed to analyze post: API request timed out.`
+    
+    **Solutions:**
+    1. Add delays between requests (see Performance section)
+    2. Increase PHP timeout: `--extra-php="-d max_execution_time=300"`
+    3. Use smaller batches instead of `audit all`
+    4. Check Gemini API quota in Google Cloud Console
+  </Accordion>
+
+  <Accordion title="Memory exhausted">
+    **Error:** `Fatal error: Allowed memory size exhausted`
+    
+    **Solutions:**
+    1. Increase memory: `--extra-php="-d memory_limit=512M"`
+    2. Process in smaller batches
+    3. Use `wp post list` with `--posts_per_page` to paginate
+  </Accordion>
+
+  <Accordion title="Permission denied">
+    **Error:** `Error: You do not have permission to run this command.`
+    
+    **Solutions:**
+    1. Run as correct user: `sudo -u www-data wp geoai audit all`
+    2. Or use: `wp geoai audit all --allow-root` (not recommended for production)
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Analyzers" icon="chart-mixed" href="/advanced/analyzers">
+    Learn what each analyzer checks
+  </Card>
+  <Card title="REST API" icon="code" href="/api-reference/endpoints">
+    HTTP alternative to WP-CLI
+  </Card>
+  <Card title="Automation" icon="robot" href="/guides/automation">
+    Automate SEO audits with cron
+  </Card>
+  <Card title="WP-CLI Docs" icon="book" href="https://wp-cli.org/">
+    Official WP-CLI documentation
+  </Card>
+</CardGroup>

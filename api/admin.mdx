@@ -1,0 +1,306 @@
+---
+title: 'GeoAI_Admin'
+description: 'Admin interface controller for GEO AI plugin settings and dashboard'
+---
+
+## Overview
+
+The `GeoAI_Admin` class manages the WordPress admin interface for the GEO AI plugin. It handles all settings pages, meta boxes, AJAX operations, and admin asset management. This class uses the singleton pattern and includes the `Encryption` trait for secure API key handling.
+
+**Namespace:** `GeoAI\Admin`
+
+**Location:** `includes/class-geoai-admin.php`
+
+## Key Features
+
+- Admin menu and settings page management
+- SEO meta boxes on post editor
+- API key configuration and testing
+- Multi-tab settings interface
+- Bulk SEO editor
+- AI-powered meta generation interface
+- Asset enqueueing for admin and editor
+
+## Public Methods
+
+### get_instance()
+
+Returns the singleton instance of the admin class.
+
+```php
+public static function get_instance()
+```
+
+**Returns:** `GeoAI_Admin` - The singleton instance
+
+**Example:**
+```php
+$admin = \GeoAI\Admin\GeoAI_Admin::get_instance();
+```
+
+### add_admin_menu()
+
+Registers the main GEO AI menu page and submenu pages in WordPress admin.
+
+```php
+public function add_admin_menu()
+```
+
+**Hooks:** `admin_menu`
+
+**Menu Structure:**
+- Main: GEO AI Settings
+- Submenu: SEO Dashboard
+
+### register_settings()
+
+Registers all plugin settings with WordPress Settings API.
+
+```php
+public function register_settings()
+```
+
+**Hooks:** `admin_init`
+
+**Registered Settings:**
+<ParamField path="geoai_api_key" type="string">
+  Google Gemini API key (sanitized)
+</ParamField>
+
+<ParamField path="geoai_autorun_on_save" type="boolean">
+  Auto-run AI audit on post save
+</ParamField>
+
+<ParamField path="geoai_compat_mode" type="string">
+  Compatibility mode: 'standalone' or 'coexist'
+</ParamField>
+
+<ParamField path="geoai_titles_templates" type="array">
+  Title templates for different post types
+</ParamField>
+
+<ParamField path="geoai_meta_templates" type="array">
+  Meta description templates
+</ParamField>
+
+<ParamField path="geoai_social_defaults" type="array">
+  Social media defaults (OpenGraph, Twitter)
+</ParamField>
+
+<ParamField path="geoai_schema_defaults" type="array">
+  Schema.org markup defaults
+</ParamField>
+
+<ParamField path="geoai_sitemaps" type="array">
+  XML sitemap configuration
+</ParamField>
+
+<ParamField path="geoai_redirects" type="array">
+  URL redirect rules
+</ParamField>
+
+<ParamField path="geoai_404_settings" type="array">
+  404 error monitoring settings
+</ParamField>
+
+### sanitize_api_key()
+
+Sanitizes the Google Gemini API key input.
+
+```php
+public function sanitize_api_key( $value )
+```
+
+<ParamField path="value" type="string" required>
+  Raw API key value from user input
+</ParamField>
+
+**Returns:** `string` - Sanitized API key
+
+### enqueue_admin_assets()
+
+Enqueues CSS and JavaScript assets for admin pages.
+
+```php
+public function enqueue_admin_assets( $hook )
+```
+
+<ParamField path="hook" type="string" required>
+  Current admin page hook
+</ParamField>
+
+**Hooks:** `admin_enqueue_scripts`
+
+**Assets Loaded:**
+- `admin.css` - Admin interface styles
+- `admin.js` - Admin JavaScript functionality
+- `chart.umd.min.js` - Chart.js for dashboard (only on dashboard page)
+
+### enqueue_editor_assets()
+
+Enqueues assets for the Gutenberg block editor.
+
+```php
+public function enqueue_editor_assets()
+```
+
+**Hooks:** `enqueue_block_editor_assets`
+
+**Assets Loaded:**
+- `editor.js` - Block editor integration
+- `editor.css` - Editor-specific styles
+
+### render_settings_page()
+
+Renders the main settings page with tabbed interface.
+
+```php
+public function render_settings_page()
+```
+
+**Tabs:**
+- General - API key, compatibility mode
+- Titles & Meta - Title and meta description templates
+- Social - OpenGraph and Twitter Cards
+- Schema - Schema.org markup settings
+- Sitemaps - XML sitemap configuration
+- Crawlers - AI crawler blocking preferences
+- Redirects & 404 - URL redirects and 404 monitoring
+- Bulk Editor - Mass edit SEO meta data
+- Tools - Import/export and utilities
+- Advanced - Debug mode and advanced options
+
+### add_seo_meta_boxes()
+
+Adds SEO meta boxes to post editor screens.
+
+```php
+public function add_seo_meta_boxes()
+```
+
+**Hooks:** `add_meta_boxes`
+
+**Added to:** All public post types
+
+### save_seo_meta()
+
+Saves SEO meta data when a post is saved.
+
+```php
+public function save_seo_meta( $post_id, $post )
+```
+
+<ParamField path="post_id" type="int" required>
+  The post ID being saved
+</ParamField>
+
+<ParamField path="post" type="WP_Post" required>
+  The post object being saved
+</ParamField>
+
+**Hooks:** `save_post`
+
+### ajax_generate_meta()
+
+Handles AJAX request to generate AI-powered meta content.
+
+```php
+public function ajax_generate_meta()
+```
+
+**Hooks:** `wp_ajax_geoai_generate_meta`
+
+**AJAX Parameters:**
+- `post_id` - Post ID to generate meta for
+- `nonce` - Security nonce
+
+**Response:** JSON with generated title and description
+
+### ajax_test_api()
+
+Handles AJAX request to test Google Gemini API connection.
+
+```php
+public function ajax_test_api()
+```
+
+**Hooks:** `wp_ajax_geoai_test_api`
+
+**AJAX Parameters:**
+- `api_key` - API key to test
+- `nonce` - Security nonce
+
+**Response:** JSON with success/error message
+
+## Usage Examples
+
+### Get Admin Instance
+
+```php
+$admin = \GeoAI\Admin\GeoAI_Admin::get_instance();
+```
+
+### Check if Auto-Run is Enabled
+
+```php
+$autorun = get_option( 'geoai_autorun_on_save', false );
+if ( $autorun ) {
+    // Auto-run is enabled
+}
+```
+
+### Get Current Compatibility Mode
+
+```php
+$compat_mode = get_option( 'geoai_compat_mode', 'standalone' );
+if ( $compat_mode === 'coexist' ) {
+    // Running in coexist mode with other SEO plugins
+}
+```
+
+### Customize Admin Tabs
+
+```php
+add_filter( 'geoai_admin_tabs', function( $tabs ) {
+    $tabs['custom'] = __( 'Custom Settings', 'my-plugin' );
+    return $tabs;
+});
+```
+
+## Hooks and Filters
+
+### Actions
+
+- `admin_menu` - Registers admin menu pages
+- `admin_init` - Registers settings
+- `admin_enqueue_scripts` - Enqueues admin assets
+- `enqueue_block_editor_assets` - Enqueues editor assets
+- `add_meta_boxes` - Adds SEO meta boxes
+- `save_post` - Saves SEO meta data
+- `wp_ajax_geoai_generate_meta` - AJAX meta generation
+- `wp_ajax_geoai_test_api` - AJAX API testing
+
+## Settings Structure
+
+### Title Templates
+
+Templates support these variables:
+- `%%title%%` - Post/page title
+- `%%sitename%%` - Site name
+- `%%sep%%` - Separator (|)
+- `%%excerpt%%` - Post excerpt
+- `%%category%%` - Primary category
+- `%%tag%%` - First tag
+- `%%date%%` - Publish date
+- `%%author%%` - Author name
+- `%%sitedesc%%` - Site description
+
+### API Key Storage
+
+API keys are sanitized using `sanitize_text_field()` and stored as plain text. Future versions may implement encryption.
+
+## Related Classes
+
+- [GeoAI_Analyzer](/api/analyzer) - AI content analysis
+- [GeoAI_Meta](/api/meta) - Meta tag output
+- [GeoAI_Compat](/api/compat) - Plugin compatibility

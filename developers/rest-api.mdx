@@ -1,0 +1,648 @@
+---
+title: REST API Reference
+description: Complete reference for GEO AI REST API endpoints with request/response examples
+---
+
+## Overview
+
+GEO AI provides a REST API under the `geoai/v1` namespace for programmatic access to AI audits, quick fixes, and content analysis. All endpoints require WordPress authentication.
+
+## Base URL
+
+```
+https://yoursite.com/wp-json/geoai/v1
+```
+
+## Authentication
+
+All endpoints use WordPress REST API authentication:
+
+<Tabs>
+  <Tab title="Cookie Authentication">
+    For same-origin requests (e.g., from the WordPress admin):
+    
+    ```js
+    wp.apiFetch({
+        path: '/geoai/v1/audit',
+        method: 'POST',
+        data: { post_id: 123 }
+    });
+    ```
+  </Tab>
+  
+  <Tab title="Application Password">
+    For external requests:
+    
+    ```bash
+    curl -X POST https://example.com/wp-json/geoai/v1/audit \
+      --user "username:application-password" \
+      -H "Content-Type: application/json" \
+      -d '{"post_id": 123}'
+    ```
+  </Tab>
+  
+  <Tab title="OAuth">
+    Use OAuth 1.0a with the WP REST API OAuth plugin:
+    
+    ```bash
+    curl -X POST https://example.com/wp-json/geoai/v1/audit \
+      -H "Authorization: OAuth ..." \
+      -H "Content-Type: application/json" \
+      -d '{"post_id": 123}'
+    ```
+  </Tab>
+</Tabs>
+
+## Endpoints
+
+### Run Audit
+
+Runs an AI-powered content audit using Google Gemini API.
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://example.com/wp-json/geoai/v1/audit \
+  -H "Content-Type: application/json" \
+  -H "X-WP-Nonce: YOUR_NONCE" \
+  -d '{"post_id": 123}'
+```
+
+```js JavaScript
+await wp.apiFetch({
+    path: '/geoai/v1/audit',
+    method: 'POST',
+    data: { post_id: 123 }
+});
+```
+
+```php PHP
+$response = wp_remote_post(
+    rest_url( 'geoai/v1/audit' ),
+    array(
+        'headers' => array(
+            'Content-Type' => 'application/json',
+            'X-WP-Nonce'  => wp_create_nonce( 'wp_rest' ),
+        ),
+        'body' => json_encode( array( 'post_id' => 123 ) ),
+    )
+);
+```
+</CodeGroup>
+
+#### Request
+
+**Method**: `POST`  
+**Endpoint**: `/geoai/v1/audit`
+
+**Parameters**:
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `post_id` | integer | Yes | The ID of the post to audit |
+
+#### Response
+
+**Success (200)**:
+
+```json
+{
+  "success": true,
+  "data": {
+    "scores": {
+      "answerability": 85,
+      "structure": 78,
+      "trust": 90,
+      "technical": 82,
+      "total": 84
+    },
+    "issues": [
+      {
+        "id": "missing_tldr",
+        "severity": "high",
+        "msg": "Post lacks a TL;DR summary for quick understanding",
+        "quickFix": "insert_answer_card"
+      },
+      {
+        "id": "low_readability",
+        "severity": "med",
+        "msg": "Content readability could be improved with shorter sentences",
+        "quickFix": null
+      }
+    ],
+    "schema": {
+      "article": true,
+      "faq": false,
+      "howto": false,
+      "errors": []
+    },
+    "suggestions": {
+      "titleOptions": [
+        "How to Build SEO-Optimized Content for AI Search",
+        "AI Search Optimization: Complete Guide for 2024"
+      ],
+      "entities": [
+        "Google AI Overviews",
+        "Perplexity AI",
+        "ChatGPT Search",
+        "Schema.org"
+      ],
+      "citations": [
+        "https://developers.google.com/search/docs",
+        "https://schema.org/Article"
+      ]
+    },
+    "runAt": "2024-03-15T14:30:00+00:00"
+  }
+}
+```
+
+**Error (500)**:
+
+```json
+{
+  "success": false,
+  "message": "Google Gemini API key not configured."
+}
+```
+
+#### Permissions
+
+Requires: `edit_post` capability for the specified post.
+
+#### Source
+
+**Location**: `includes/class-geoai-rest.php:83-107`
+
+---
+
+### Apply Quick Fix
+
+Applies automated content improvements to a post.
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://example.com/wp-json/geoai/v1/quick-fix \
+  -H "Content-Type: application/json" \
+  -H "X-WP-Nonce: YOUR_NONCE" \
+  -d '{
+    "post_id": 123,
+    "fix_id": "insert_answer_card"
+  }'
+```
+
+```js JavaScript
+await wp.apiFetch({
+    path: '/geoai/v1/quick-fix',
+    method: 'POST',
+    data: {
+        post_id: 123,
+        fix_id: 'insert_answer_card'
+    }
+});
+```
+
+```php PHP
+$response = wp_remote_post(
+    rest_url( 'geoai/v1/quick-fix' ),
+    array(
+        'headers' => array(
+            'Content-Type' => 'application/json',
+        ),
+        'body' => json_encode( array(
+            'post_id' => 123,
+            'fix_id'  => 'insert_answer_card',
+        ) ),
+    )
+);
+```
+</CodeGroup>
+
+#### Request
+
+**Method**: `POST`  
+**Endpoint**: `/geoai/v1/quick-fix`
+
+**Parameters**:
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `post_id` | integer | Yes | The ID of the post to modify |
+| `fix_id` | string | Yes | The ID of the fix to apply |
+
+**Available Fix IDs**:
+
+| Fix ID | Description |
+|--------|-------------|
+| `insert_answer_card` | Inserts Answer Card block at top of post |
+| `add_author` | Adds author byline (planned) |
+
+#### Response
+
+**Success (200)**:
+
+```json
+{
+  "success": true,
+  "message": "Quick fix applied successfully.",
+  "data": {
+    "content": "<!-- wp:geoai/answer-card... -->\n\n<original content>",
+    "notice": "Answer Card inserted at the top of the post."
+  }
+}
+```
+
+**Error - Already Exists (500)**:
+
+```json
+{
+  "success": false,
+  "message": "Answer Card already exists in this post."
+}
+```
+
+**Error - Invalid Fix (500)**:
+
+```json
+{
+  "success": false,
+  "message": "Invalid fix ID."
+}
+```
+
+#### Permissions
+
+Requires: `edit_post` capability for the specified post.
+
+#### Source
+
+**Location**: `includes/class-geoai-rest.php:109-183`
+
+---
+
+## Custom Meta Registration
+
+GEO AI registers custom post meta fields that are exposed via REST API:
+
+```php
+register_post_meta(
+    '',  // All post types
+    '_geoai_audit_timestamp',
+    array(
+        'show_in_rest'  => true,
+        'single'        => true,
+        'type'          => 'string',
+        'auth_callback' => function () {
+            return current_user_can( 'edit_posts' );
+        },
+    )
+);
+```
+
+### Accessing Meta via REST
+
+```bash
+curl https://example.com/wp-json/wp/v2/posts/123
+```
+
+Response includes:
+
+```json
+{
+  "id": 123,
+  "title": {...},
+  "content": {...},
+  "meta": {
+    "_geoai_audit_timestamp": "2024-03-15 14:30:00"
+  }
+}
+```
+
+## Error Handling
+
+### Error Response Format
+
+All errors follow this structure:
+
+```json
+{
+  "success": false,
+  "message": "Error description"
+}
+```
+
+### Common Error Codes
+
+| HTTP Code | Meaning | Common Causes |
+|-----------|---------|---------------|
+| 400 | Bad Request | Missing required parameters |
+| 401 | Unauthorized | Not authenticated |
+| 403 | Forbidden | Insufficient permissions |
+| 404 | Not Found | Post doesn't exist |
+| 500 | Server Error | API error, plugin configuration issue |
+
+### Handling Errors in JavaScript
+
+```js
+try {
+    const response = await wp.apiFetch({
+        path: '/geoai/v1/audit',
+        method: 'POST',
+        data: { post_id: 123 }
+    });
+    
+    if (response.success) {
+        console.log('Audit complete:', response.data);
+    }
+} catch (error) {
+    if (error.code === 'no_api_key') {
+        alert('Please configure your Gemini API key in settings.');
+    } else {
+        console.error('Audit failed:', error.message);
+    }
+}
+```
+
+## Rate Limiting
+
+GEO AI respects Google Gemini API rate limits:
+
+- **Free tier**: 15 requests per minute
+- **Paid tier**: 1000+ requests per minute
+
+<Warning>
+Exceeding rate limits will result in `429 Too Many Requests` errors from the Gemini API.
+</Warning>
+
+### Implementing Client-Side Rate Limiting
+
+```js
+class AuditQueue {
+    constructor() {
+        this.queue = [];
+        this.processing = false;
+        this.minInterval = 4000; // 4 seconds between requests
+    }
+    
+    async add(postId) {
+        this.queue.push(postId);
+        if (!this.processing) {
+            await this.process();
+        }
+    }
+    
+    async process() {
+        this.processing = true;
+        
+        while (this.queue.length > 0) {
+            const postId = this.queue.shift();
+            
+            try {
+                await wp.apiFetch({
+                    path: '/geoai/v1/audit',
+                    method: 'POST',
+                    data: { post_id: postId }
+                });
+            } catch (error) {
+                console.error(`Audit failed for post ${postId}:`, error);
+            }
+            
+            // Wait before next request
+            if (this.queue.length > 0) {
+                await new Promise(resolve => 
+                    setTimeout(resolve, this.minInterval)
+                );
+            }
+        }
+        
+        this.processing = false;
+    }
+}
+
+const auditQueue = new AuditQueue();
+auditQueue.add(123);
+auditQueue.add(456);
+```
+
+## Extending the REST API
+
+### Adding Custom Endpoints
+
+Extend GEO AI's REST API with custom endpoints:
+
+```php
+add_action( 'rest_api_init', function() {
+    register_rest_route( 'geoai/v1', '/custom-endpoint', array(
+        'methods'  => 'POST',
+        'callback' => 'my_custom_endpoint_handler',
+        'permission_callback' => function() {
+            return current_user_can( 'edit_posts' );
+        },
+        'args' => array(
+            'post_id' => array(
+                'required' => true,
+                'type' => 'integer',
+                'sanitize_callback' => 'absint',
+            ),
+        ),
+    ) );
+} );
+
+function my_custom_endpoint_handler( $request ) {
+    $post_id = $request->get_param( 'post_id' );
+    
+    // Your logic here
+    
+    return new WP_REST_Response( array(
+        'success' => true,
+        'data' => array( 'post_id' => $post_id ),
+    ), 200 );
+}
+```
+
+### Filtering Audit Results
+
+Modify audit results before they're returned:
+
+```php
+add_filter( 'geoai_audit_result', function( $result, $post_id ) {
+    // Add custom scoring criteria
+    $result['scores']['custom_metric'] = 95;
+    
+    // Add custom issues
+    $result['issues'][] = array(
+        'id' => 'custom_issue',
+        'severity' => 'low',
+        'msg' => 'Custom validation failed',
+        'quickFix' => null,
+    );
+    
+    return $result;
+}, 10, 2 );
+```
+
+## Usage Examples
+
+### Bulk Audit Posts
+
+```js
+async function auditAllPosts(postIds) {
+    const results = [];
+    
+    for (const postId of postIds) {
+        try {
+            const response = await wp.apiFetch({
+                path: '/geoai/v1/audit',
+                method: 'POST',
+                data: { post_id: postId }
+            });
+            
+            results.push({
+                postId,
+                success: true,
+                score: response.data.scores.total
+            });
+        } catch (error) {
+            results.push({
+                postId,
+                success: false,
+                error: error.message
+            });
+        }
+        
+        // Wait 4 seconds between requests
+        await new Promise(resolve => setTimeout(resolve, 4000));
+    }
+    
+    return results;
+}
+
+// Usage
+const results = await auditAllPosts([123, 456, 789]);
+console.table(results);
+```
+
+### Building a Custom Dashboard
+
+```js
+import { useEffect, useState } from '@wordpress/element';
+import apiFetch from '@wordpress/api-fetch';
+
+function AuditDashboard({ postId }) {
+    const [audit, setAudit] = useState(null);
+    const [loading, setLoading] = useState(false);
+    
+    const runAudit = async () => {
+        setLoading(true);
+        
+        try {
+            const response = await apiFetch({
+                path: '/geoai/v1/audit',
+                method: 'POST',
+                data: { post_id: postId }
+            });
+            
+            if (response.success) {
+                setAudit(response.data);
+            }
+        } catch (error) {
+            console.error('Audit failed:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+    
+    return (
+        <div className="audit-dashboard">
+            <button onClick={runAudit} disabled={loading}>
+                {loading ? 'Running...' : 'Run Audit'}
+            </button>
+            
+            {audit && (
+                <div className="audit-results">
+                    <h3>Overall Score: {audit.scores.total}</h3>
+                    <ul>
+                        {audit.issues.map((issue, i) => (
+                            <li key={i}>
+                                <strong>{issue.severity}:</strong> {issue.msg}
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            )}
+        </div>
+    );
+}
+```
+
+## Testing
+
+### Using WP-CLI
+
+Test endpoints from the command line:
+
+```bash
+# Run audit
+wp eval 'echo json_encode(
+    wp_remote_post(
+        rest_url("geoai/v1/audit"),
+        array("body" => json_encode(array("post_id" => 123)))
+    )
+);'
+
+# Apply quick fix
+wp eval 'echo json_encode(
+    wp_remote_post(
+        rest_url("geoai/v1/quick-fix"),
+        array(
+            "body" => json_encode(array(
+                "post_id" => 123,
+                "fix_id" => "insert_answer_card"
+            ))
+        )
+    )
+);'
+```
+
+### PHPUnit Tests
+
+```php
+class GeoAI_REST_Test extends WP_UnitTestCase {
+    public function test_audit_endpoint_requires_auth() {
+        $request = new WP_REST_Request( 'POST', '/geoai/v1/audit' );
+        $request->set_param( 'post_id', 1 );
+        
+        $response = rest_do_request( $request );
+        
+        $this->assertEquals( 401, $response->get_status() );
+    }
+    
+    public function test_audit_endpoint_returns_scores() {
+        wp_set_current_user( $this->factory->user->create( array(
+            'role' => 'editor',
+        ) ) );
+        
+        $post_id = $this->factory->post->create();
+        
+        $request = new WP_REST_Request( 'POST', '/geoai/v1/audit' );
+        $request->set_param( 'post_id', $post_id );
+        
+        $response = rest_do_request( $request );
+        $data = $response->get_data();
+        
+        $this->assertEquals( 200, $response->get_status() );
+        $this->assertTrue( $data['success'] );
+        $this->assertArrayHasKey( 'scores', $data['data'] );
+    }
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Extending GEO AI" icon="puzzle-piece" href="/developers/extending">
+    Learn about hooks, filters, and custom analyzers
+  </Card>
+  <Card title="Contributing" icon="code-branch" href="/developers/contributing">
+    Contribute improvements to the REST API
+  </Card>
+</CardGroup>

@@ -1,0 +1,923 @@
+---
+title: Extending GEO AI
+description: Extend GEO AI functionality with hooks, filters, and custom analyzers
+---
+
+## Overview
+
+GEO AI is built with extensibility in mind. Developers can customize behavior, add features, and integrate with other plugins using WordPress hooks, filters, and custom classes.
+
+## Action Hooks
+
+Action hooks allow you to execute custom code at specific points in the plugin lifecycle.
+
+### Plugin Lifecycle Hooks
+
+#### geoai_init
+
+Fires after all GEO AI components are initialized.
+
+**Location**: `geo-ai.php:128`
+
+```php
+add_action( 'geoai_init', function() {
+    // Plugin fully loaded - initialize custom features
+    if ( class_exists( 'My_Custom_Integration' ) ) {
+        My_Custom_Integration::init();
+    }
+} );
+```
+
+#### geoai_activated
+
+Fires when the plugin is activated.
+
+**Location**: `geo-ai.php:165`
+
+```php
+add_action( 'geoai_activated', function() {
+    // Set up custom tables, default options, etc.
+    global $wpdb;
+    
+    $table_name = $wpdb->prefix . 'my_custom_geoai_data';
+    $charset_collate = $wpdb->get_charset_collate();
+    
+    $sql = "CREATE TABLE IF NOT EXISTS $table_name (
+        id bigint(20) NOT NULL AUTO_INCREMENT,
+        post_id bigint(20) NOT NULL,
+        custom_score int(3) DEFAULT 0,
+        PRIMARY KEY (id)
+    ) $charset_collate;";
+    
+    require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+    dbDelta( $sql );
+} );
+```
+
+#### geoai_deactivated
+
+Fires when the plugin is deactivated.
+
+**Location**: `geo-ai.php:204`
+
+```php
+add_action( 'geoai_deactivated', function() {
+    // Clean up temporary data
+    delete_transient( 'my_custom_cache' );
+    
+    // Clear scheduled tasks
+    wp_clear_scheduled_hook( 'my_custom_cron' );
+} );
+```
+
+#### geoai_add_capabilities
+
+Fires when custom capabilities are being added to roles.
+
+**Location**: `geo-ai.php:292`
+
+```php
+add_action( 'geoai_add_capabilities', function() {
+    $role = get_role( 'editor' );
+    
+    if ( $role ) {
+        $role->add_cap( 'manage_geoai' );
+        $role->add_cap( 'edit_geoai_meta' );
+    }
+} );
+```
+
+### Background Processing Hooks
+
+#### geoai_background_audit
+
+Fires when a background audit task is processed.
+
+**Location**: `includes/class-geoai-analyzer.php:34`
+
+```php
+add_action( 'geoai_background_audit', function( $post_id ) {
+    // Log background audits
+    error_log( "Background audit started for post {$post_id}" );
+    
+    // Perform additional analysis
+    do_custom_analysis( $post_id );
+}, 10, 1 );
+```
+
+## Filter Hooks
+
+Filters allow you to modify data before it's used or output.
+
+### Schema Filters
+
+#### geoai_schema_output
+
+Modify schema.org JSON-LD output before rendering.
+
+**Location**: `includes/class-geoai-schema.php:51`
+
+```php
+add_filter( 'geoai_schema_output', function( $schema ) {
+    // Add custom schema type
+    $schema[] = array(
+        '@type' => 'Person',
+        '@id' => home_url( '/#author' ),
+        'name' => get_the_author(),
+        'url' => get_author_posts_url( get_the_author_meta( 'ID' ) ),
+        'sameAs' => array(
+            'https://twitter.com/username',
+            'https://linkedin.com/in/username',
+        ),
+    );
+    
+    return $schema;
+} );
+```
+
+**Example: Add BreadcrumbList Schema**
+
+```php
+add_filter( 'geoai_schema_output', function( $schema ) {
+    if ( is_single() ) {
+        $breadcrumbs = array(
+            '@type' => 'BreadcrumbList',
+            'itemListElement' => array(),
+        );
+        
+        // Add home
+        $breadcrumbs['itemListElement'][] = array(
+            '@type' => 'ListItem',
+            'position' => 1,
+            'name' => 'Home',
+            'item' => home_url( '/' ),
+        );
+        
+        // Add category
+        $category = get_the_category();
+        if ( ! empty( $category ) ) {
+            $breadcrumbs['itemListElement'][] = array(
+                '@type' => 'ListItem',
+                'position' => 2,
+                'name' => $category[0]->name,
+                'item' => get_category_link( $category[0]->term_id ),
+            );
+        }
+        
+        // Add current post
+        $breadcrumbs['itemListElement'][] = array(
+            '@type' => 'ListItem',
+            'position' => count( $breadcrumbs['itemListElement'] ) + 1,
+            'name' => get_the_title(),
+            'item' => get_permalink(),
+        );
+        
+        $schema[] = $breadcrumbs;
+    }
+    
+    return $schema;
+} );
+```
+
+### Audit Result Filters
+
+#### geoai_audit_result
+
+Modify audit results before they're saved or returned via REST API.
+
+```php
+add_filter( 'geoai_audit_result', function( $result, $post_id ) {
+    // Add custom scoring dimension
+    $result['scores']['custom_metric'] = calculate_custom_score( $post_id );
+    
+    // Adjust total score to include custom metric
+    $total = (
+        $result['scores']['answerability'] * 0.35 +
+        $result['scores']['structure'] * 0.20 +
+        $result['scores']['trust'] * 0.20 +
+        $result['scores']['technical'] * 0.15 +
+        $result['scores']['custom_metric'] * 0.10
+    );
+    
+    $result['scores']['total'] = round( $total );
+    
+    return $result;
+}, 10, 2 );
+
+function calculate_custom_score( $post_id ) {
+    // Your custom scoring logic
+    $word_count = str_word_count( get_post_field( 'post_content', $post_id ) );
+    
+    if ( $word_count >= 2000 ) {
+        return 100;
+    } elseif ( $word_count >= 1000 ) {
+        return 75;
+    } elseif ( $word_count >= 500 ) {
+        return 50;
+    }
+    
+    return 25;
+}
+```
+
+#### geoai_audit_issues
+
+Add or remove issues from audit results.
+
+```php
+add_filter( 'geoai_audit_issues', function( $issues, $post_id ) {
+    $post = get_post( $post_id );
+    
+    // Check for external links
+    $content = $post->post_content;
+    $external_link_count = preg_match_all(
+        '/<a[^>]+href=["\']https?:\/\/(?!' . preg_quote( home_url(), '/' ) . ')[^"\']/', 
+        $content
+    );
+    
+    if ( $external_link_count < 2 ) {
+        $issues[] = array(
+            'id' => 'insufficient_external_links',
+            'severity' => 'low',
+            'msg' => 'Consider adding more authoritative external sources to improve trust signals.',
+            'quickFix' => null,
+        );
+    }
+    
+    // Check for featured image
+    if ( ! has_post_thumbnail( $post_id ) ) {
+        $issues[] = array(
+            'id' => 'missing_featured_image',
+            'severity' => 'med',
+            'msg' => 'Featured image missing. Add one to improve social sharing and visual appeal.',
+            'quickFix' => null,
+        );
+    }
+    
+    return $issues;
+}, 10, 2 );
+```
+
+### Meta Output Filters
+
+#### geoai_meta_title
+
+Modify the SEO title before output.
+
+```php
+add_filter( 'geoai_meta_title', function( $title, $post_id ) {
+    // Add year for time-sensitive content
+    if ( has_category( 'news', $post_id ) ) {
+        $title .= ' - ' . date( 'Y' );
+    }
+    
+    return $title;
+}, 10, 2 );
+```
+
+#### geoai_meta_description
+
+Modify the meta description before output.
+
+```php
+add_filter( 'geoai_meta_description', function( $description, $post_id ) {
+    // Ensure description ends with call-to-action
+    if ( ! preg_match( '/[.!?]$/', $description ) ) {
+        $description .= '.';
+    }
+    
+    $description .= ' Read more »';
+    
+    // Truncate if too long
+    if ( strlen( $description ) > 160 ) {
+        $description = substr( $description, 0, 157 ) . '...';
+    }
+    
+    return $description;
+}, 10, 2 );
+```
+
+## Custom Analyzers
+
+Create custom content analyzers by extending the analyzer architecture.
+
+### Creating a Custom Analyzer
+
+```php
+namespace MyPlugin\Analyzers;
+
+class Custom_Analyzer {
+    /**
+     * Analyze content for custom criteria.
+     *
+     * @param int $post_id Post ID.
+     * @return array Analysis results.
+     */
+    public function analyze( $post_id ) {
+        $post = get_post( $post_id );
+        $content = $post->post_content;
+        $issues = array();
+        $score = 100;
+        
+        // Check for video embeds
+        if ( ! has_shortcode( $content, 'video' ) && 
+             ! preg_match( '/<iframe[^>]+youtube|vimeo/i', $content ) ) {
+            $score -= 20;
+            $issues[] = array(
+                'id' => 'no_video',
+                'severity' => 'low',
+                'msg' => 'Consider adding video content to increase engagement.',
+            );
+        }
+        
+        // Check for internal links
+        $internal_links = $this->count_internal_links( $content );
+        if ( $internal_links < 3 ) {
+            $score -= 15;
+            $issues[] = array(
+                'id' => 'insufficient_internal_links',
+                'severity' => 'med',
+                'msg' => "Found {$internal_links} internal links. Aim for at least 3.",
+            );
+        }
+        
+        // Check reading time
+        $word_count = str_word_count( wp_strip_all_tags( $content ) );
+        $reading_time = ceil( $word_count / 200 ); // 200 WPM average
+        
+        if ( $reading_time > 15 ) {
+            $score -= 10;
+            $issues[] = array(
+                'id' => 'long_reading_time',
+                'severity' => 'low',
+                'msg' => "Estimated reading time: {$reading_time} minutes. Consider breaking into multiple posts.",
+            );
+        }
+        
+        return array(
+            'score' => max( 0, $score ),
+            'issues' => $issues,
+            'metrics' => array(
+                'internal_links' => $internal_links,
+                'reading_time' => $reading_time,
+                'word_count' => $word_count,
+            ),
+        );
+    }
+    
+    /**
+     * Count internal links in content.
+     */
+    private function count_internal_links( $content ) {
+        $home_url = home_url();
+        $pattern = '/<a[^>]+href=["\']' . preg_quote( $home_url, '/' ) . '[^"\']*["\'][^>]*>/i';
+        return preg_match_all( $pattern, $content );
+    }
+}
+```
+
+### Integrating Custom Analyzer
+
+Hook into the audit process:
+
+```php
+add_filter( 'geoai_audit_result', function( $result, $post_id ) {
+    $custom_analyzer = new \MyPlugin\Analyzers\Custom_Analyzer();
+    $custom_results = $custom_analyzer->analyze( $post_id );
+    
+    // Add custom score to results
+    $result['scores']['engagement'] = $custom_results['score'];
+    
+    // Merge issues
+    $result['issues'] = array_merge( $result['issues'], $custom_results['issues'] );
+    
+    // Add custom metrics
+    $result['custom_metrics'] = $custom_results['metrics'];
+    
+    // Recalculate total score
+    $result['scores']['total'] = round(
+        ( $result['scores']['answerability'] * 0.30 +
+          $result['scores']['structure'] * 0.20 +
+          $result['scores']['trust'] * 0.20 +
+          $result['scores']['technical'] * 0.15 +
+          $result['scores']['engagement'] * 0.15 )
+    );
+    
+    return $result;
+}, 10, 2 );
+```
+
+## Custom Quick Fixes
+
+Extend the Quick Fix system with custom automated improvements.
+
+```php
+add_filter( 'geoai_quick_fixes', function( $fixes ) {
+    $fixes['add_table_of_contents'] = array(
+        'label' => __( 'Add Table of Contents', 'my-plugin' ),
+        'description' => __( 'Automatically generate and insert a table of contents.', 'my-plugin' ),
+        'callback' => 'my_plugin_add_toc',
+    );
+    
+    return $fixes;
+} );
+
+function my_plugin_add_toc( $post_id ) {
+    $post = get_post( $post_id );
+    $content = $post->post_content;
+    
+    // Check if TOC already exists
+    if ( strpos( $content, '<!-- wp:my-plugin/table-of-contents' ) !== false ) {
+        return new \WP_Error( 'toc_exists', 'Table of contents already exists.' );
+    }
+    
+    // Generate TOC block
+    $toc_block = '<!-- wp:my-plugin/table-of-contents /-->';
+    
+    // Find first heading
+    preg_match( '/<!-- wp:heading/', $content, $matches, PREG_OFFSET_CAPTURE );
+    
+    if ( empty( $matches ) ) {
+        // No headings found, insert at beginning
+        $updated_content = $toc_block . "\n\n" . $content;
+    } else {
+        // Insert before first heading
+        $insert_pos = $matches[0][1];
+        $updated_content = substr_replace( $content, $toc_block . "\n\n", $insert_pos, 0 );
+    }
+    
+    // Update post
+    wp_update_post( array(
+        'ID' => $post_id,
+        'post_content' => $updated_content,
+    ) );
+    
+    return array(
+        'success' => true,
+        'message' => __( 'Table of contents inserted.', 'my-plugin' ),
+    );
+}
+```
+
+## REST API Extensions
+
+### Adding Custom Endpoints
+
+```php
+add_action( 'rest_api_init', function() {
+    register_rest_route( 'myplugin/v1', '/analyze-keywords', array(
+        'methods' => 'POST',
+        'callback' => 'myplugin_analyze_keywords',
+        'permission_callback' => function() {
+            return current_user_can( 'edit_posts' );
+        },
+        'args' => array(
+            'post_id' => array(
+                'required' => true,
+                'type' => 'integer',
+                'sanitize_callback' => 'absint',
+            ),
+            'keyword' => array(
+                'required' => true,
+                'type' => 'string',
+                'sanitize_callback' => 'sanitize_text_field',
+            ),
+        ),
+    ) );
+} );
+
+function myplugin_analyze_keywords( $request ) {
+    $post_id = $request->get_param( 'post_id' );
+    $keyword = $request->get_param( 'keyword' );
+    
+    $post = get_post( $post_id );
+    $content = wp_strip_all_tags( $post->post_content );
+    
+    // Calculate keyword density
+    $word_count = str_word_count( $content );
+    $keyword_count = substr_count( strtolower( $content ), strtolower( $keyword ) );
+    $density = ( $keyword_count / $word_count ) * 100;
+    
+    return new \WP_REST_Response( array(
+        'success' => true,
+        'data' => array(
+            'keyword' => $keyword,
+            'occurrences' => $keyword_count,
+            'density' => round( $density, 2 ),
+            'recommendation' => $density < 0.5 ? 'Increase usage' : 
+                               ( $density > 3 ? 'Reduce usage' : 'Optimal' ),
+        ),
+    ), 200 );
+}
+```
+
+### Modifying REST Responses
+
+```php
+add_filter( 'rest_prepare_post', function( $response, $post ) {
+    $data = $response->get_data();
+    
+    // Add GEO AI audit data to post response
+    $audit_data = get_post_meta( $post->ID, '_geoai_audit', true );
+    
+    if ( $audit_data ) {
+        $data['geoai_audit'] = json_decode( $audit_data, true );
+    }
+    
+    $response->set_data( $data );
+    return $response;
+}, 10, 2 );
+```
+
+## WP-CLI Commands
+
+Extend GEO AI's WP-CLI functionality:
+
+```php
+if ( defined( 'WP_CLI' ) && WP_CLI ) {
+    class My_GeoAI_CLI_Command {
+        /**
+         * Generate SEO report for all posts.
+         *
+         * ## OPTIONS
+         *
+         * [--format=<format>]
+         * : Output format (table, csv, json)
+         * ---
+         * default: table
+         * options:
+         *   - table
+         *   - csv
+         *   - json
+         * ---
+         *
+         * ## EXAMPLES
+         *
+         *     wp mygeoai report --format=csv > report.csv
+         */
+        public function report( $args, $assoc_args ) {
+            $format = $assoc_args['format'] ?? 'table';
+            
+            $posts = get_posts( array(
+                'post_type' => 'post',
+                'posts_per_page' => -1,
+                'post_status' => 'publish',
+            ) );
+            
+            $report_data = array();
+            
+            foreach ( $posts as $post ) {
+                $audit_json = get_post_meta( $post->ID, '_geoai_audit', true );
+                $audit = json_decode( $audit_json, true );
+                
+                $report_data[] = array(
+                    'ID' => $post->ID,
+                    'Title' => $post->post_title,
+                    'Score' => $audit['scores']['total'] ?? 'N/A',
+                    'Issues' => count( $audit['issues'] ?? array() ),
+                    'Last Audit' => get_post_meta( $post->ID, '_geoai_audit_timestamp', true ),
+                );
+            }
+            
+            \WP_CLI\Utils\format_items( $format, $report_data, 
+                array( 'ID', 'Title', 'Score', 'Issues', 'Last Audit' ) );
+        }
+    }
+    
+    \WP_CLI::add_command( 'mygeoai', 'My_GeoAI_CLI_Command' );
+}
+```
+
+## Admin UI Extensions
+
+### Adding Custom Settings Tabs
+
+```php
+add_filter( 'geoai_settings_tabs', function( $tabs ) {
+    $tabs['custom'] = __( 'Custom Settings', 'my-plugin' );
+    return $tabs;
+} );
+
+add_action( 'geoai_settings_tab_custom', function() {
+    $custom_option = get_option( 'my_custom_geoai_option', '' );
+    ?>
+    <h2><?php esc_html_e( 'Custom GEO AI Settings', 'my-plugin' ); ?></h2>
+    <table class="form-table">
+        <tr>
+            <th scope="row">
+                <label for="my_custom_option">
+                    <?php esc_html_e( 'Custom Option', 'my-plugin' ); ?>
+                </label>
+            </th>
+            <td>
+                <input type="text" 
+                       id="my_custom_option" 
+                       name="my_custom_geoai_option" 
+                       value="<?php echo esc_attr( $custom_option ); ?>" 
+                       class="regular-text" />
+            </td>
+        </tr>
+    </table>
+    <?php
+} );
+```
+
+### Adding Meta Box Fields
+
+```php
+add_action( 'add_meta_boxes', function() {
+    add_meta_box(
+        'my-custom-geoai-meta',
+        __( 'Custom SEO Data', 'my-plugin' ),
+        'my_custom_geoai_meta_box',
+        'post',
+        'side',
+        'default'
+    );
+} );
+
+function my_custom_geoai_meta_box( $post ) {
+    wp_nonce_field( 'my_custom_geoai_save', 'my_custom_geoai_nonce' );
+    
+    $custom_value = get_post_meta( $post->ID, '_my_custom_seo_field', true );
+    ?>
+    <p>
+        <label for="my_custom_seo_field">
+            <?php esc_html_e( 'Custom SEO Field:', 'my-plugin' ); ?>
+        </label>
+        <input type="text" 
+               id="my_custom_seo_field" 
+               name="my_custom_seo_field" 
+               value="<?php echo esc_attr( $custom_value ); ?>" 
+               class="widefat" />
+    </p>
+    <?php
+}
+
+add_action( 'save_post', function( $post_id ) {
+    if ( ! isset( $_POST['my_custom_geoai_nonce'] ) || 
+         ! wp_verify_nonce( $_POST['my_custom_geoai_nonce'], 'my_custom_geoai_save' ) ) {
+        return;
+    }
+    
+    if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
+        return;
+    }
+    
+    if ( isset( $_POST['my_custom_seo_field'] ) ) {
+        update_post_meta(
+            $post_id,
+            '_my_custom_seo_field',
+            sanitize_text_field( $_POST['my_custom_seo_field'] )
+        );
+    }
+} );
+```
+
+## Integration Examples
+
+### Yoast SEO Integration
+
+```php
+add_filter( 'geoai_audit_result', function( $result, $post_id ) {
+    // Import Yoast focus keyword if GEO AI keyword is empty
+    $geoai_keyword = get_post_meta( $post_id, '_geoai_focus_keyword', true );
+    
+    if ( empty( $geoai_keyword ) ) {
+        $yoast_keyword = get_post_meta( $post_id, '_yoast_wpseo_focuskw', true );
+        
+        if ( ! empty( $yoast_keyword ) ) {
+            update_post_meta( $post_id, '_geoai_focus_keyword', $yoast_keyword );
+            
+            $result['suggestions']['imported_keyword'] = $yoast_keyword;
+            $result['issues'][] = array(
+                'id' => 'imported_yoast_keyword',
+                'severity' => 'low',
+                'msg' => "Imported focus keyword from Yoast SEO: {$yoast_keyword}",
+                'quickFix' => null,
+            );
+        }
+    }
+    
+    return $result;
+}, 10, 2 );
+```
+
+### WooCommerce Integration
+
+```php
+add_filter( 'geoai_schema_output', function( $schema ) {
+    if ( is_product() ) {
+        global $product;
+        
+        $schema[] = array(
+            '@type' => 'Product',
+            'name' => $product->get_name(),
+            'description' => $product->get_short_description(),
+            'image' => wp_get_attachment_url( $product->get_image_id() ),
+            'offers' => array(
+                '@type' => 'Offer',
+                'price' => $product->get_price(),
+                'priceCurrency' => get_woocommerce_currency(),
+                'availability' => $product->is_in_stock() ? 
+                    'https://schema.org/InStock' : 
+                    'https://schema.org/OutOfStock',
+            ),
+        );
+    }
+    
+    return $schema;
+} );
+```
+
+## Performance Optimization
+
+### Caching Audit Results
+
+```php
+add_filter( 'geoai_audit_result', function( $result, $post_id ) {
+    // Cache result for 1 hour
+    set_transient( 'geoai_audit_' . $post_id, $result, HOUR_IN_SECONDS );
+    
+    return $result;
+}, 99, 2 );
+
+add_filter( 'geoai_pre_run_audit', function( $should_run, $post_id ) {
+    // Check cache first
+    $cached = get_transient( 'geoai_audit_' . $post_id );
+    
+    if ( $cached !== false ) {
+        // Return cached result, skip audit
+        return $cached;
+    }
+    
+    return $should_run;
+}, 10, 2 );
+```
+
+### Lazy Loading Components
+
+```php
+add_action( 'geoai_init', function() {
+    // Only load heavy components when needed
+    if ( is_admin() ) {
+        require_once __DIR__ . '/includes/admin-heavy-component.php';
+    }
+    
+    if ( defined( 'DOING_CRON' ) && DOING_CRON ) {
+        require_once __DIR__ . '/includes/cron-tasks.php';
+    }
+} );
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Always Check Capabilities">
+    Verify user permissions before executing sensitive operations:
+    
+    ```php
+    if ( ! current_user_can( 'edit_post', $post_id ) ) {
+        return new WP_Error( 'unauthorized', 'Insufficient permissions' );
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Sanitize and Validate">
+    Always sanitize input and validate data:
+    
+    ```php
+    $post_id = absint( $_POST['post_id'] );
+    $keyword = sanitize_text_field( $_POST['keyword'] );
+    
+    if ( $post_id <= 0 || empty( $keyword ) ) {
+        return new WP_Error( 'invalid_input', 'Invalid data provided' );
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Use WordPress Standards">
+    Follow WordPress coding standards and best practices:
+    
+    - Use WordPress functions (don't reinvent the wheel)
+    - Prefix all custom functions and classes
+    - Use proper escaping for output
+    - Add proper documentation
+  </Accordion>
+  
+  <Accordion title="Test Thoroughly">
+    Test your extensions in multiple scenarios:
+    
+    - Different WordPress versions
+    - Various themes
+    - With/without other plugins
+    - Different PHP versions
+  </Accordion>
+</AccordionGroup>
+
+## Example Plugin Structure
+
+```
+my-geoai-extension/
+├── my-geoai-extension.php    # Main plugin file
+├── includes/
+│   ├── class-custom-analyzer.php
+│   ├── class-rest-api.php
+│   └── class-admin.php
+├── assets/
+│   ├── css/
+│   └── js/
+└── readme.txt
+```
+
+**Main plugin file**:
+
+```php
+<?php
+/**
+ * Plugin Name: My GEO AI Extension
+ * Description: Extends GEO AI with custom features
+ * Version: 1.0.0
+ * Requires Plugins: geo-ai
+ */
+
+namespace MyGeoAIExtension;
+
+if ( ! defined( 'ABSPATH' ) ) {
+    exit;
+}
+
+class Plugin {
+    private static $instance = null;
+    
+    public static function get_instance() {
+        if ( null === self::$instance ) {
+            self::$instance = new self();
+        }
+        return self::$instance;
+    }
+    
+    private function __construct() {
+        add_action( 'plugins_loaded', array( $this, 'init' ) );
+    }
+    
+    public function init() {
+        // Check if GEO AI is active
+        if ( ! function_exists( 'geoai_init' ) ) {
+            add_action( 'admin_notices', array( $this, 'missing_dependency_notice' ) );
+            return;
+        }
+        
+        $this->load_dependencies();
+        $this->setup_hooks();
+    }
+    
+    private function load_dependencies() {
+        require_once plugin_dir_path( __FILE__ ) . 'includes/class-custom-analyzer.php';
+        require_once plugin_dir_path( __FILE__ ) . 'includes/class-rest-api.php';
+        require_once plugin_dir_path( __FILE__ ) . 'includes/class-admin.php';
+    }
+    
+    private function setup_hooks() {
+        add_filter( 'geoai_audit_result', array( $this, 'add_custom_analysis' ), 10, 2 );
+    }
+    
+    public function add_custom_analysis( $result, $post_id ) {
+        $analyzer = new Analyzers\Custom_Analyzer();
+        $custom_data = $analyzer->analyze( $post_id );
+        
+        $result['custom_score'] = $custom_data['score'];
+        $result['issues'] = array_merge( $result['issues'], $custom_data['issues'] );
+        
+        return $result;
+    }
+    
+    public function missing_dependency_notice() {
+        ?>
+        <div class="notice notice-error">
+            <p><?php esc_html_e( 'My GEO AI Extension requires the GEO AI plugin to be installed and activated.', 'my-geoai-extension' ); ?></p>
+        </div>
+        <?php
+    }
+}
+
+Plugin::get_instance();
+```
+
+## Resources
+
+- [WordPress Plugin Handbook](https://developer.wordpress.org/plugins/)
+- [WordPress Coding Standards](https://developer.wordpress.org/coding-standards/)
+- [WP-CLI Commands](https://developer.wordpress.org/cli/commands/)
+- [REST API Handbook](https://developer.wordpress.org/rest-api/)
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Contributing" icon="code-branch" href="/developers/contributing">
+    Contribute your extensions back to the project
+  </Card>
+  <Card title="Architecture" icon="sitemap" href="/developers/architecture">
+    Deep dive into plugin architecture
+  </Card>
+</CardGroup>

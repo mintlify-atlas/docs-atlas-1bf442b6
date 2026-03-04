@@ -1,0 +1,299 @@
+---
+title: 'Audit Endpoint'
+description: 'Run GEO optimization audits on WordPress posts via the REST API'
+icon: 'magnifying-glass'
+---
+
+## Overview
+
+The Audit endpoint analyzes a WordPress post for GEO (Generative Engine Optimization) best practices and returns a detailed report with recommendations for improvement.
+
+## Endpoint Details
+
+<ParamField path="method" type="string" required>
+  POST
+</ParamField>
+
+<ParamField path="endpoint" type="string" required>
+  `/wp-json/geoai/v1/audit`
+</ParamField>
+
+## Authentication
+
+Requires authentication with a user account that has `edit_post` capability for the specified post.
+
+See [REST API Overview](/api/rest/overview#authentication) for authentication methods.
+
+## Request Parameters
+
+<ParamField body="post_id" type="integer" required>
+  The ID of the WordPress post to audit. Must be a valid post ID that exists in your WordPress database.
+</ParamField>
+
+## Response
+
+### Success Response (200)
+
+When the audit completes successfully:
+
+<ResponseField name="success" type="boolean">
+  Always `true` for successful requests.
+</ResponseField>
+
+<ResponseField name="data" type="object">
+  The audit results containing analysis and recommendations.
+  
+  <ResponseField name="data.score" type="number">
+    Overall GEO optimization score (0-100).
+  </ResponseField>
+  
+  <ResponseField name="data.issues" type="array">
+    Array of identified issues and recommendations.
+    
+    <ResponseField name="data.issues[].id" type="string">
+      Unique identifier for the issue type.
+    </ResponseField>
+    
+    <ResponseField name="data.issues[].severity" type="string">
+      Issue severity: `critical`, `warning`, or `info`.
+    </ResponseField>
+    
+    <ResponseField name="data.issues[].message" type="string">
+      Human-readable description of the issue.
+    </ResponseField>
+    
+    <ResponseField name="data.issues[].fix_available" type="boolean">
+      Whether an automated quick fix is available.
+    </ResponseField>
+  </ResponseField>
+  
+  <ResponseField name="data.timestamp" type="string">
+    ISO 8601 timestamp of when the audit was performed.
+  </ResponseField>
+</ResponseField>
+
+### Error Response (500)
+
+When the audit fails:
+
+<ResponseField name="success" type="boolean">
+  Always `false` for failed requests.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Error message describing what went wrong.
+</ResponseField>
+
+## Examples
+
+### cURL Example
+
+```bash
+curl -X POST https://example.com/wp-json/geoai/v1/audit \
+  -u "username:application_password" \
+  -H "Content-Type: application/json" \
+  -d '{"post_id": 123}'
+```
+
+### JavaScript (Fetch API)
+
+```javascript
+// From within WordPress admin (using nonce)
+fetch('/wp-json/geoai/v1/audit', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'X-WP-Nonce': wpApiSettings.nonce
+  },
+  body: JSON.stringify({
+    post_id: 123
+  })
+})
+.then(response => response.json())
+.then(data => {
+  if (data.success) {
+    console.log('Audit score:', data.data.score);
+    console.log('Issues found:', data.data.issues.length);
+  } else {
+    console.error('Audit failed:', data.message);
+  }
+})
+.catch(error => console.error('Request failed:', error));
+```
+
+### PHP (WordPress)
+
+```php
+$response = wp_remote_post(
+  rest_url('geoai/v1/audit'),
+  array(
+    'headers' => array(
+      'Content-Type' => 'application/json',
+      'X-WP-Nonce' => wp_create_nonce('wp_rest')
+    ),
+    'body' => json_encode(array(
+      'post_id' => 123
+    ))
+  )
+);
+
+if (!is_wp_error($response)) {
+  $body = json_decode(wp_remote_retrieve_body($response), true);
+  
+  if ($body['success']) {
+    $score = $body['data']['score'];
+    $issues = $body['data']['issues'];
+    // Process audit results
+  }
+}
+```
+
+### Python (Requests)
+
+```python
+import requests
+from requests.auth import HTTPBasicAuth
+
+response = requests.post(
+    'https://example.com/wp-json/geoai/v1/audit',
+    auth=HTTPBasicAuth('username', 'application_password'),
+    json={'post_id': 123}
+)
+
+if response.status_code == 200:
+    data = response.json()
+    if data['success']:
+        print(f"Audit score: {data['data']['score']}")
+        print(f"Issues found: {len(data['data']['issues'])}")
+    else:
+        print(f"Audit failed: {data['message']}")
+else:
+    print(f"Request failed: {response.status_code}")
+```
+
+## Response Example
+
+```json
+{
+  "success": true,
+  "data": {
+    "score": 75,
+    "issues": [
+      {
+        "id": "missing_answer_card",
+        "severity": "warning",
+        "message": "Post is missing an Answer Card block for better GEO visibility",
+        "fix_available": true
+      },
+      {
+        "id": "missing_author",
+        "severity": "info",
+        "message": "Consider adding author information to build authority",
+        "fix_available": true
+      },
+      {
+        "id": "content_length",
+        "severity": "info",
+        "message": "Content could be more comprehensive (current: 450 words, recommended: 800+)",
+        "fix_available": false
+      }
+    ],
+    "timestamp": "2026-03-04T10:30:00Z"
+  }
+}
+```
+
+## Error Responses
+
+### Missing Required Parameter
+
+```json
+{
+  "code": "rest_missing_callback_param",
+  "message": "Missing parameter(s): post_id",
+  "data": {
+    "status": 400,
+    "params": ["post_id"]
+  }
+}
+```
+
+### Insufficient Permissions
+
+```json
+{
+  "code": "rest_forbidden",
+  "message": "Sorry, you are not allowed to edit this post.",
+  "data": {
+    "status": 403
+  }
+}
+```
+
+### Invalid Post ID
+
+```json
+{
+  "success": false,
+  "message": "Post not found or invalid post ID."
+}
+```
+
+### Analysis Error
+
+```json
+{
+  "success": false,
+  "message": "Failed to analyze post content: Unable to connect to AI service."
+}
+```
+
+## Implementation Details
+
+The audit endpoint is implemented in `/home/daytona/workspace/source/includes/class-geoai-rest.php:83`.
+
+### Permission Check
+
+The endpoint verifies that the current user has `edit_post` capability for the specified post before running the audit.
+
+### Audit Process
+
+1. Validates the `post_id` parameter
+2. Checks user permissions
+3. Calls the GEO AI analyzer to examine post content
+4. Returns analysis results with actionable recommendations
+
+### Post Meta
+
+After a successful audit, the timestamp is stored in the `_geoai_audit_timestamp` post meta field. You can retrieve this via the WordPress REST API posts endpoint.
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Cache Audit Results">
+    Audits can take a few seconds to complete. Cache the results and only re-run audits when the post content changes.
+  </Accordion>
+  
+  <Accordion title="Handle Errors Gracefully">
+    Always check the `success` field in the response and handle errors appropriately. Network issues or AI service outages can occur.
+  </Accordion>
+  
+  <Accordion title="Rate Limiting">
+    Avoid running audits in tight loops. If auditing multiple posts, add delays between requests.
+  </Accordion>
+  
+  <Accordion title="User Permissions">
+    Ensure your authenticated user has edit permissions for the post being audited to avoid 403 errors.
+  </Accordion>
+</AccordionGroup>
+
+## Related Endpoints
+
+<CardGroup cols={2}>
+  <Card title="Quick Fix" icon="wrench" href="/api/rest/quick-fix">
+    Apply automated fixes to issues found in the audit
+  </Card>
+  <Card title="API Overview" icon="book" href="/api/rest/overview">
+    Learn about authentication and common patterns
+  </Card>
+</CardGroup>

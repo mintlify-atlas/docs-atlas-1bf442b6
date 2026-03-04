@@ -1,0 +1,603 @@
+---
+title: 404 Monitor
+description: Track and log 404 errors with referrer information and retention controls
+---
+
+## Overview
+
+The **404 Monitor** tracks broken links on your site by logging 404 (Page Not Found) errors with detailed information including URLs, referrers, IP addresses, and timestamps.
+
+<Info>
+  Identifying and fixing 404 errors improves user experience, SEO rankings, and helps discover opportunities for redirects.
+</Info>
+
+## Features
+
+<CardGroup cols={2}>
+  <Card title="Automatic Logging" icon="file-pen">
+    Captures 404 errors as they occur in real-time
+  </Card>
+  
+  <Card title="Referrer Tracking" icon="link">
+    See where broken links are coming from
+  </Card>
+  
+  <Card title="Retention Controls" icon="clock">
+    Automatically delete old logs after specified days
+  </Card>
+  
+  <Card title="Privacy-Focused" icon="shield">
+    Opt-in logging with configurable data retention
+  </Card>
+</CardGroup>
+
+## Configuration
+
+<Steps>
+  <Step title="Access 404 Settings">
+    Navigate to **Settings → GEO AI → Redirects & 404**
+  </Step>
+  
+  <Step title="Enable Logging">
+    Check **"Log 404 errors"** to start tracking
+  </Step>
+  
+  <Step title="Set Retention Period">
+    Enter number of days to keep logs (default: 30 days)
+  </Step>
+  
+  <Step title="Set Max Entries">
+    Configure maximum log entries (default: 1,000)
+  </Step>
+  
+  <Step title="Save Changes">
+    Click **Save Changes** to activate monitoring
+  </Step>
+</Steps>
+
+<Warning>
+  404 logging is **opt-in** and disabled by default for privacy and performance reasons.
+</Warning>
+
+## Implementation Details
+
+### 404 Logging Class
+
+```php title="includes/class-geoai-404.php" showLineNumbers
+class GeoAI_404 {
+    private static $instance = null;
+    private $table_name;
+
+    public static function get_instance() {
+        if ( null === self::$instance ) {
+            self::$instance = new self();
+        }
+        return self::$instance;
+    }
+
+    private function __construct() {
+        global $wpdb;
+        $this->table_name = $wpdb->prefix . 'geoai_404_log';
+
+        add_action( 'template_redirect', array( $this, 'log_404' ) );
+    }
+}
+```
+
+### Logging Function
+
+```php title="includes/class-geoai-404.php" showLineNumbers startLineNumber="35"
+public function log_404() {
+    if ( ! is_404() ) {
+        return;
+    }
+
+    $settings = get_option( 'geoai_404_settings', array() );
+    
+    if ( empty( $settings['enabled'] ) ) {
+        return;
+    }
+
+    global $wpdb;
+
+    $url      = $_SERVER['REQUEST_URI'];
+    $referrer = $_SERVER['HTTP_REFERER'] ?? '';
+    $ip       = $this->get_client_ip();
+
+    $wpdb->insert(
+        $this->table_name,
+        array(
+            'url'       => $url,
+            'referrer'  => $referrer,
+            'ip'        => $ip,
+            'timestamp' => current_time( 'mysql' ),
+        ),
+        array( '%s', '%s', '%s', '%s' )
+    );
+
+    $this->cleanup_old_logs();
+}
+```
+
+### IP Detection
+
+```php title="includes/class-geoai-404.php" showLineNumbers startLineNumber="66"
+private function get_client_ip() {
+    $ip = '';
+    
+    if ( ! empty( $_SERVER['HTTP_CLIENT_IP'] ) ) {
+        $ip = $_SERVER['HTTP_CLIENT_IP'];
+    } elseif ( ! empty( $_SERVER['HTTP_X_FORWARDED_FOR'] ) ) {
+        $ip = $_SERVER['HTTP_X_FORWARDED_FOR'];
+    } else {
+        $ip = $_SERVER['REMOTE_ADDR'];
+    }
+
+    return sanitize_text_field( $ip );
+}
+```
+
+### Auto-Cleanup
+
+```php title="includes/class-geoai-404.php" showLineNumbers startLineNumber="80"
+private function cleanup_old_logs() {
+    global $wpdb;
+
+    $settings = get_option( 'geoai_404_settings', array() );
+    $retention = $settings['retention'] ?? 30;
+
+    $wpdb->query(
+        $wpdb->prepare(
+            "DELETE FROM {$this->table_name} WHERE timestamp < DATE_SUB(NOW(), INTERVAL %d DAY)",
+            $retention
+        )
+    );
+}
+```
+
+## Database Schema
+
+The 404 log uses a dedicated database table:
+
+```sql
+CREATE TABLE wp_geoai_404_log (
+  id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  url varchar(255) NOT NULL,
+  referrer varchar(255) DEFAULT NULL,
+  ip varchar(45) DEFAULT NULL,
+  timestamp datetime NOT NULL,
+  PRIMARY KEY (id),
+  KEY timestamp (timestamp),
+  KEY url (url)
+);
+```
+
+**Columns:**
+- `id`: Unique identifier for each log entry
+- `url`: The requested URL that returned 404
+- `referrer`: The page that linked to the broken URL
+- `ip`: IP address of the visitor
+- `timestamp`: When the 404 occurred
+
+## Viewing 404 Logs
+
+Recent errors appear at the bottom of the Redirects & 404 settings page:
+
+```php title="includes/class-geoai-admin.php" showLineNumbers startLineNumber="907"
+private function render_404_log_viewer() {
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'geoai_404_log';
+    
+    // Check if table exists
+    if ( $wpdb->get_var( "SHOW TABLES LIKE '{$table_name}'" ) !== $table_name ) {
+        return;
+    }
+
+    $logs = $wpdb->get_results(
+        "SELECT * FROM {$table_name} ORDER BY timestamp DESC LIMIT 50",
+        ARRAY_A
+    );
+
+    if ( empty( $logs ) ) {
+        return;
+    }
+    ?>
+    <h3><?php esc_html_e( 'Recent 404 Errors', 'geo-ai' ); ?></h3>
+    <table class="widefat">
+        <thead>
+            <tr>
+                <th><?php esc_html_e( 'URL', 'geo-ai' ); ?></th>
+                <th><?php esc_html_e( 'Referrer', 'geo-ai' ); ?></th>
+                <th><?php esc_html_e( 'IP', 'geo-ai' ); ?></th>
+                <th><?php esc_html_e( 'Date', 'geo-ai' ); ?></th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php foreach ( $logs as $log ) : ?>
+            <tr>
+                <td><code><?php echo esc_html( $log['url'] ); ?></code></td>
+                <td><?php echo esc_html( $log['referrer'] ? $log['referrer'] : '-' ); ?></td>
+                <td><?php echo esc_html( $log['ip'] ); ?></td>
+                <td><?php echo esc_html( $log['timestamp'] ); ?></td>
+            </tr>
+            <?php endforeach; ?>
+        </tbody>
+    </table>
+    <?php
+}
+```
+
+## Log Display Example
+
+| URL | Referrer | IP | Date |
+|-----|----------|----|----- |
+| `/old-product` | `https://google.com/` | `192.168.1.1` | 2025-03-04 15:30:22 |
+| `/blog/missing-post` | `https://example.com/blog/` | `192.168.1.2` | 2025-03-04 14:15:10 |
+| `/contact-old` | `-` | `192.168.1.3` | 2025-03-04 12:45:00 |
+
+## Common 404 Patterns
+
+<AccordionGroup>
+  <Accordion title="Internal Broken Links">
+    **Indicators:**
+    - Referrer is from your own domain
+    - Multiple hits from the same URL
+    
+    **Action:**
+    - Find and update the broken link in your content
+    - Or create a redirect if the old URL was intentional
+  </Accordion>
+  
+  <Accordion title="External Backlinks">
+    **Indicators:**
+    - Referrer is from external domain
+    - Consistent pattern of hits
+    
+    **Action:**
+    - Create 301 redirect to preserve link equity
+    - Contact site owner to update link (if possible)
+  </Accordion>
+  
+  <Accordion title="Search Engine Crawlers">
+    **Indicators:**
+    - No referrer or search engine referrer
+    - Old URLs that used to exist
+    
+    **Action:**
+    - Create redirects to relevant current content
+    - Use Google Search Console to see which URLs Google expects
+  </Accordion>
+  
+  <Accordion title="Typos & Guessing">
+    **Indicators:**
+    - URLs with obvious typos
+    - Random URLs not related to your content
+    
+    **Action:**
+    - Usually safe to ignore
+    - Consider creating redirect only if pattern is frequent
+  </Accordion>
+  
+  <Accordion title="Malicious Scanning">
+    **Indicators:**
+    - Requests for `/wp-admin`, `/xmlrpc.php`, `.env`, etc.
+    - Many requests from same IP
+    
+    **Action:**
+    - Safe to ignore (security plugin should handle)
+    - Consider IP blocking if excessive
+  </Accordion>
+</AccordionGroup>
+
+## Analyzing 404 Data
+
+### Most Common 404s
+
+Query the database to find frequently broken URLs:
+
+```php
+global $wpdb;
+$table = $wpdb->prefix . 'geoai_404_log';
+
+$common_404s = $wpdb->get_results("
+    SELECT url, COUNT(*) as hits
+    FROM {$table}
+    WHERE timestamp > DATE_SUB(NOW(), INTERVAL 30 DAY)
+    GROUP BY url
+    ORDER BY hits DESC
+    LIMIT 20
+");
+
+foreach ( $common_404s as $error ) {
+    echo $error->url . ': ' . $error->hits . ' hits<br>';
+}
+```
+
+### 404s by Referrer
+
+Find which pages are linking to broken URLs:
+
+```php
+$by_referrer = $wpdb->get_results("
+    SELECT referrer, COUNT(*) as count
+    FROM {$table}
+    WHERE referrer != ''
+    GROUP BY referrer
+    ORDER BY count DESC
+    LIMIT 10
+");
+```
+
+## Creating Redirects from 404s
+
+<Steps>
+  <Step title="Review 404 Log">
+    Check the Recent 404 Errors table for broken URLs
+  </Step>
+  
+  <Step title="Identify Redirect Target">
+    Determine where the old URL should redirect to
+  </Step>
+  
+  <Step title="Add Redirect">
+    Scroll to the Redirects section and click **"Add Redirect"**
+  </Step>
+  
+  <Step title="Enter Details">
+    - **From:** Copy the 404 URL (e.g., `/old-product`)
+    - **To:** Enter destination (e.g., `/products/new-product`)
+    - **Type:** Select 301 Permanent
+  </Step>
+  
+  <Step title="Save & Test">
+    Save changes and test the old URL to verify redirect works
+  </Step>
+</Steps>
+
+## Retention & Privacy
+
+### Data Retention
+
+<CardGroup cols={2}>
+  <Card title="Retention Period" icon="calendar">
+    Default: **30 days**
+    
+    Automatically deletes logs older than specified days
+  </Card>
+  
+  <Card title="Max Entries" icon="database">
+    Default: **1,000 entries**
+    
+    Prevents database bloat on high-traffic sites
+  </Card>
+</CardGroup>
+
+### Privacy Considerations
+
+<Warning>
+  404 logs contain visitor IP addresses. Ensure compliance with GDPR, CCPA, and other privacy regulations.
+</Warning>
+
+**Best practices:**
+- Enable logging only when needed
+- Set conservative retention periods (7-30 days)
+- Disclose logging in your privacy policy
+- Don't store logs longer than necessary
+- Consider anonymizing or hashing IPs
+
+### IP Anonymization
+
+Anonymize IP addresses for better privacy:
+
+```php
+add_filter( 'geoai_404_log_ip', 'anonymize_ip_address' );
+
+function anonymize_ip_address( $ip ) {
+    // Remove last octet from IPv4
+    if ( filter_var( $ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 ) ) {
+        return preg_replace( '/\d+$/', '0', $ip );
+    }
+    
+    // Remove last 80 bits from IPv6
+    if ( filter_var( $ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6 ) ) {
+        return substr( $ip, 0, strrpos( $ip, ':' ) ) . ':0000';
+    }
+    
+    return $ip;
+}
+```
+
+## Performance Impact
+
+<CardGroup cols={2}>
+  <Card title="Low Overhead" icon="gauge">
+    Single database INSERT per 404 (typically less than 5ms)
+  </Card>
+  
+  <Card title="Minimal Queries" icon="database">
+    No queries on successful page loads, only on 404s
+  </Card>
+  
+  <Card title="Auto-Cleanup" icon="broom">
+    Old logs deleted automatically to prevent bloat
+  </Card>
+  
+  <Card title="Optional Feature" icon="toggle-off">
+    Can be disabled completely if not needed
+  </Card>
+</CardGroup>
+
+## Export 404 Data
+
+Export logs for analysis in external tools:
+
+```php
+global $wpdb;
+$table = $wpdb->prefix . 'geoai_404_log';
+
+$logs = $wpdb->get_results(
+    "SELECT * FROM {$table} ORDER BY timestamp DESC",
+    ARRAY_A
+);
+
+// Output CSV
+header('Content-Type: text/csv');
+header('Content-Disposition: attachment; filename="404-logs.csv"');
+
+$output = fopen('php://output', 'w');
+fputcsv($output, array('URL', 'Referrer', 'IP', 'Timestamp'));
+
+foreach ($logs as $log) {
+    fputcsv($output, [
+        $log['url'],
+        $log['referrer'],
+        $log['ip'],
+        $log['timestamp'],
+    ]);
+}
+
+fclose($output);
+exit;
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Review Regularly" icon="calendar-check">
+    Check 404 logs weekly to catch new broken links quickly.
+  </Card>
+  
+  <Card title="Fix Internal Links" icon="wrench">
+    Update broken internal links in your content rather than relying on redirects.
+  </Card>
+  
+  <Card title="Redirect High-Value Pages" icon="arrow-right">
+    Create 301 redirects for URLs with backlinks or traffic.
+  </Card>
+  
+  <Card title="Ignore Bot Scans" icon="robot">
+    Don't create redirects for obvious scanning attempts (.php, .env, etc.).
+  </Card>
+  
+  <Card title="Set Conservative Retention" icon="clock">
+    Keep logs for 7-30 days max to comply with privacy regulations.
+  </Card>
+  
+  <Card title="Monitor After Migrations" icon="truck">
+    Enable logging during site restructures to catch missed redirects.
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="404s not being logged">
+    **Check:**
+    - Logging is enabled in Settings → Redirects & 404
+    - Database table exists (check during plugin activation)
+    - You're viewing actual 404 pages (not redirects)
+    - No caching plugin preventing 404 detection
+  </Accordion>
+  
+  <Accordion title="Table doesn't exist">
+    **Solution:**
+    - Deactivate and reactivate GEO AI plugin
+    - Or run table creation manually:
+    
+    ```php
+    global $wpdb;
+    $table = $wpdb->prefix . 'geoai_404_log';
+    
+    $sql = "CREATE TABLE {$table} (
+        id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+        url varchar(255) NOT NULL,
+        referrer varchar(255) DEFAULT NULL,
+        ip varchar(45) DEFAULT NULL,
+        timestamp datetime NOT NULL,
+        PRIMARY KEY (id),
+        KEY timestamp (timestamp),
+        KEY url (url)
+    ) {$wpdb->get_charset_collate()};";
+    
+    require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+    dbDelta( $sql );
+    ```
+  </Accordion>
+  
+  <Accordion title="Too many logs">
+    **Solution:**
+    - Lower retention period (e.g., 7 days)
+    - Lower max entries (e.g., 500)
+    - Manually delete old logs:
+    
+    ```php
+    global $wpdb;
+    $table = $wpdb->prefix . 'geoai_404_log';
+    $wpdb->query("TRUNCATE TABLE {$table}");
+    ```
+  </Accordion>
+  
+  <Accordion title="Performance issues">
+    **Cause:** Very high 404 rate (bot attacks, missing files)
+    
+    **Solution:**
+    - Disable logging temporarily
+    - Add database index on url column
+    - Increase auto-cleanup frequency
+    - Block malicious IPs at server level
+  </Accordion>
+</AccordionGroup>
+
+## Advanced Usage
+
+### Custom 404 Page
+
+Show most common 404s on your custom 404 page:
+
+```php title="404.php"
+<?php
+get_header();
+
+global $wpdb;
+$table = $wpdb->prefix . 'geoai_404_log';
+
+// Get top 5 requested pages
+$popular = $wpdb->get_results("
+    SELECT url, COUNT(*) as hits
+    FROM {$table}
+    GROUP BY url
+    ORDER BY hits DESC
+    LIMIT 5
+", ARRAY_A);
+?>
+
+<h1>Page Not Found</h1>
+<p>Sorry, the page you're looking for doesn't exist.</p>
+
+<h2>Popular Pages</h2>
+<ul>
+<?php foreach ($popular as $page) : ?>
+    <li><a href="<?php echo esc_url($page['url']); ?>">
+        <?php echo esc_html($page['url']); ?>
+    </a></li>
+<?php endforeach; ?>
+</ul>
+
+<?php get_footer(); ?>
+```
+
+## Related Features
+
+<CardGroup cols={3}>
+  <Card title="Redirects" icon="arrow-right" href="./redirects">
+    Create redirects for broken URLs
+  </Card>
+  
+  <Card title="Sitemaps" icon="sitemap" href="./sitemaps">
+    Help search engines find valid URLs
+  </Card>
+  
+  <Card title="Canonical URLs" icon="link" href="./meta-titles">
+    Prevent duplicate content issues
+  </Card>
+</CardGroup>

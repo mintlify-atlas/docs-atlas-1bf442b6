@@ -1,0 +1,367 @@
+---
+title: 'GeoAI_Schema'
+description: 'Schema.org JSON-LD structured data output for enhanced search visibility'
+---
+
+## Overview
+
+The `GeoAI_Schema` class generates and outputs Schema.org structured data in JSON-LD format. This helps search engines better understand your content and can enable rich results in search listings.
+
+**Namespace:** `GeoAI\Core`
+
+**Location:** `includes/class-geoai-schema.php`
+
+## Key Features
+
+- JSON-LD structured data output
+- WebSite schema with SearchAction
+- Organization schema
+- Article schema for blog posts
+- Automatic schema generation
+- Filter hooks for customization
+- Compatibility mode support
+
+## Public Methods
+
+### get_instance()
+
+Returns the singleton instance of the schema class.
+
+```php
+public static function get_instance()
+```
+
+**Returns:** `GeoAI_Schema` - The singleton instance
+
+**Example:**
+```php
+$schema = \GeoAI\Core\GeoAI_Schema::get_instance();
+```
+
+### output_schema()
+
+Outputs JSON-LD schema markup in the website head.
+
+```php
+public function output_schema()
+```
+
+**Hooks:** `wp_head` (priority 2)
+
+**Output Format:**
+```json
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    // Schema objects here
+  ]
+}
+```
+
+## Schema Types
+
+### WebSite Schema
+
+Generated on the homepage when enabled in settings.
+
+```php
+{
+  "@type": "WebSite",
+  "@id": "https://example.com/#website",
+  "url": "https://example.com/",
+  "name": "Site Name",
+  "description": "Site Description",
+  "potentialAction": {
+    "@type": "SearchAction",
+    "target": {
+      "@type": "EntryPoint",
+      "urlTemplate": "https://example.com/?s={search_term_string}"
+    },
+    "query-input": "required name=search_term_string"
+  }
+}
+```
+
+**Enables:** Sitelinks search box in Google Search
+
+### Organization Schema
+
+Generated on the homepage when enabled in settings.
+
+```php
+{
+  "@type": "Organization",
+  "@id": "https://example.com/#organization",
+  "name": "Organization Name",
+  "url": "https://example.com/"
+}
+```
+
+**Purpose:** Establishes your site as an organization entity
+
+### Article Schema
+
+Generated on single post pages when enabled in settings.
+
+```php
+{
+  "@type": "Article",
+  "@id": "https://example.com/post-slug/#article",
+  "headline": "Post Title",
+  "description": "Post excerpt or description",
+  "datePublished": "2026-03-04T10:30:00+00:00",
+  "dateModified": "2026-03-04T14:20:00+00:00",
+  "author": {
+    "@type": "Person",
+    "name": "Author Name"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "Site Name"
+  },
+  "mainEntityOfPage": {
+    "@type": "WebPage",
+    "@id": "https://example.com/post-slug/"
+  }
+}
+```
+
+**Rich Results:** Can enable article rich results in Google Search
+
+## Configuration
+
+### Schema Settings
+
+Control which schema types are enabled:
+
+```php
+$defaults = get_option( 'geoai_schema_defaults', array() );
+
+// Enable/disable schema types
+$defaults['article'] = true;       // Article schema on posts
+$defaults['faq'] = false;          // FAQPage schema
+$defaults['howto'] = false;        // HowTo schema
+$defaults['organization'] = true;  // Organization schema
+$defaults['website'] = true;       // WebSite + SearchAction
+
+update_option( 'geoai_schema_defaults', $defaults );
+```
+
+### Default Settings
+
+<ParamField path="article" type="boolean" default="true">
+  Enable Article schema on blog posts
+</ParamField>
+
+<ParamField path="faq" type="boolean" default="false">
+  Enable FAQPage schema (future feature)
+</ParamField>
+
+<ParamField path="howto" type="boolean" default="false">
+  Enable HowTo schema (future feature)
+</ParamField>
+
+<ParamField path="organization" type="boolean" default="true">
+  Enable Organization schema on homepage
+</ParamField>
+
+<ParamField path="website" type="boolean" default="true">
+  Enable WebSite schema with SearchAction on homepage
+</ParamField>
+
+## Customization
+
+### Filter Schema Output
+
+Modify or add to the schema graph:
+
+```php
+add_filter( 'geoai_schema_output', function( $schema ) {
+    // Add custom schema
+    $schema[] = array(
+        '@type' => 'LocalBusiness',
+        'name' => 'My Business',
+        'address' => array(
+            '@type' => 'PostalAddress',
+            'streetAddress' => '123 Main St',
+            'addressLocality' => 'City',
+            'postalCode' => '12345'
+        )
+    );
+    
+    return $schema;
+});
+```
+
+### Add BreadcrumbList Schema
+
+```php
+add_filter( 'geoai_schema_output', function( $schema ) {
+    if ( ! is_singular() ) {
+        return $schema;
+    }
+    
+    $schema[] = array(
+        '@type' => 'BreadcrumbList',
+        '@id' => get_permalink() . '#breadcrumb',
+        'itemListElement' => array(
+            array(
+                '@type' => 'ListItem',
+                'position' => 1,
+                'name' => 'Home',
+                'item' => home_url( '/' )
+            ),
+            array(
+                '@type' => 'ListItem',
+                'position' => 2,
+                'name' => get_the_title()
+            )
+        )
+    );
+    
+    return $schema;
+});
+```
+
+### Modify Article Schema
+
+```php
+add_filter( 'geoai_schema_output', function( $schema ) {
+    foreach ( $schema as &$item ) {
+        if ( isset( $item['@type'] ) && $item['@type'] === 'Article' ) {
+            // Add image
+            $thumbnail = get_the_post_thumbnail_url( get_the_ID(), 'full' );
+            if ( $thumbnail ) {
+                $item['image'] = $thumbnail;
+            }
+            
+            // Add article section
+            $category = get_the_category();
+            if ( ! empty( $category ) ) {
+                $item['articleSection'] = $category[0]->name;
+            }
+            
+            // Add word count
+            $content = get_post_field( 'post_content', get_the_ID() );
+            $item['wordCount'] = str_word_count( wp_strip_all_tags( $content ) );
+        }
+    }
+    
+    return $schema;
+});
+```
+
+## Usage Examples
+
+### Enable All Schema Types
+
+```php
+$schema_settings = array(
+    'article' => true,
+    'faq' => true,
+    'howto' => true,
+    'organization' => true,
+    'website' => true
+);
+
+update_option( 'geoai_schema_defaults', $schema_settings );
+```
+
+### Disable Schema on Specific Post
+
+```php
+add_filter( 'geoai_schema_output', function( $schema ) {
+    if ( is_singular() && get_the_ID() === 123 ) {
+        return array(); // Disable all schema
+    }
+    return $schema;
+});
+```
+
+### Add Product Schema
+
+```php
+add_filter( 'geoai_schema_output', function( $schema ) {
+    if ( is_singular( 'product' ) ) {
+        $schema[] = array(
+            '@type' => 'Product',
+            'name' => get_the_title(),
+            'description' => get_the_excerpt(),
+            'image' => get_the_post_thumbnail_url( get_the_ID(), 'full' ),
+            'offers' => array(
+                '@type' => 'Offer',
+                'price' => get_post_meta( get_the_ID(), '_price', true ),
+                'priceCurrency' => 'USD',
+                'availability' => 'https://schema.org/InStock'
+            )
+        );
+    }
+    
+    return $schema;
+});
+```
+
+### Validate Schema Output
+
+Use Google's Rich Results Test:
+
+```php
+// Get schema output
+$schema = \GeoAI\Core\GeoAI_Schema::get_instance();
+ob_start();
+$schema->output_schema();
+$output = ob_get_clean();
+
+// Extract JSON
+preg_match( '/<script type="application\/ld\+json">(.*?)<\/script>/s', $output, $matches );
+$json = $matches[1] ?? '';
+
+// Validate
+$data = json_decode( $json, true );
+if ( json_last_error() === JSON_ERROR_NONE ) {
+    echo 'Valid JSON-LD';
+}
+```
+
+## Compatibility Mode
+
+The class respects compatibility settings:
+
+```php
+if ( ! GeoAI_Compat::get_instance()->should_output_meta() ) {
+    return; // Skip schema output when in coexist mode
+}
+```
+
+This prevents duplicate schema when using other SEO plugins.
+
+## Schema Best Practices
+
+### Required Properties
+
+Ensure all required properties are included:
+
+- **Article:** headline, datePublished, author
+- **Organization:** name, url
+- **WebSite:** name, url
+
+### Image Requirements
+
+For Article schema, include high-quality images:
+
+- Minimum 1200px wide
+- 16:9, 4:3, or 1:1 aspect ratio
+- JPG, PNG, or WebP format
+
+### Testing Tools
+
+- [Google Rich Results Test](https://search.google.com/test/rich-results)
+- [Schema Markup Validator](https://validator.schema.org/)
+- [Google Search Console](https://search.google.com/search-console)
+
+## Related Classes
+
+- [GeoAI_Meta](/api/meta) - Meta tags and SEO titles
+- [GeoAI_Social](/api/social) - Social media meta tags
+- [GeoAI_Breadcrumbs](/api/breadcrumbs) - Breadcrumb navigation
+- [GeoAI_Compat](/api/compat) - Plugin compatibility

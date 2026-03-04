@@ -1,0 +1,452 @@
+---
+title: 'GeoAI_Redirects'
+description: 'URL redirect manager for 301 and 302 redirects with wildcard support'
+---
+
+## Overview
+
+The `GeoAI_Redirects` class provides URL redirect functionality for managing 301 (permanent) and 302 (temporary) redirects. It supports wildcard patterns for flexible redirect rules.
+
+**Namespace:** `GeoAI\Core`
+
+**Location:** `includes/class-geoai-redirects.php`
+
+## Key Features
+
+- 301 permanent redirects
+- 302 temporary redirects
+- Wildcard pattern support
+- URL pattern matching
+- Early template redirect hook
+- Admin interface integration
+
+## Public Methods
+
+### get_instance()
+
+Returns the singleton instance of the redirects class.
+
+```php
+public static function get_instance()
+```
+
+**Returns:** `GeoAI_Redirects` - The singleton instance
+
+**Example:**
+```php
+$redirects = \GeoAI\Core\GeoAI_Redirects::get_instance();
+```
+
+### maybe_redirect()
+
+Checks if current request matches a redirect rule and performs redirect.
+
+```php
+public function maybe_redirect()
+```
+
+**Hooks:** `template_redirect` (priority 1)
+
+**Behavior:**
+- Runs early before template is loaded
+- Skips admin requests
+- Checks all configured redirects
+- Performs wp_redirect() and exits on match
+
+## Redirect Types
+
+### 301 Permanent Redirect
+
+Use for permanent URL changes:
+
+```php
+array(
+    'from' => '/old-page',
+    'to'   => '/new-page',
+    'type' => 301
+)
+```
+
+**When to use:**
+- Page permanently moved
+- URL structure changed
+- Domain migration
+- Pass link equity to new URL
+
+### 302 Temporary Redirect
+
+Use for temporary URL changes:
+
+```php
+array(
+    'from' => '/promo',
+    'to'   => '/special-offer',
+    'type' => 302
+)
+```
+
+**When to use:**
+- Temporary promotions
+- A/B testing
+- Maintenance redirects
+- Seasonal content
+
+## Configuration
+
+### Add Redirects
+
+```php
+$redirects = get_option( 'geoai_redirects', array() );
+
+$redirects[] = array(
+    'from' => '/old-url',
+    'to'   => '/new-url',
+    'type' => 301
+);
+
+update_option( 'geoai_redirects', $redirects );
+```
+
+### Redirect Structure
+
+<ParamField path="from" type="string" required>
+  Source URL path to redirect from (e.g., /old-page)
+</ParamField>
+
+<ParamField path="to" type="string" required>
+  Destination URL to redirect to (e.g., /new-page or https://external.com)
+</ParamField>
+
+<ParamField path="type" type="int" default="301">
+  HTTP redirect status code (301 or 302)
+</ParamField>
+
+## Wildcard Patterns
+
+### Asterisk Wildcard
+
+Use `*` to match any characters:
+
+```php
+// Redirect all /blog/* to /news/*
+array(
+    'from' => '/blog/*',
+    'to'   => '/news/',
+    'type' => 301
+)
+```
+
+### Pattern Examples
+
+**Match all subpages:**
+```php
+array(
+    'from' => '/old-section/*',
+    'to'   => '/new-section/',
+    'type' => 301
+)
+```
+
+**Match specific pattern:**
+```php
+array(
+    'from' => '/products/*/details',
+    'to'   => '/product-info/',
+    'type' => 301
+)
+```
+
+**Match file extensions:**
+```php
+array(
+    'from' => '/*.html',
+    'to'   => '/',
+    'type' => 301
+)
+```
+
+## Usage Examples
+
+### Simple Redirect
+
+```php
+$redirects = array(
+    array(
+        'from' => '/about-us',
+        'to'   => '/about',
+        'type' => 301
+    )
+);
+
+update_option( 'geoai_redirects', $redirects );
+```
+
+### Multiple Redirects
+
+```php
+$redirects = array(
+    array(
+        'from' => '/old-blog',
+        'to'   => '/blog',
+        'type' => 301
+    ),
+    array(
+        'from' => '/contact-form',
+        'to'   => '/contact',
+        'type' => 301
+    ),
+    array(
+        'from' => '/promo',
+        'to'   => '/summer-sale',
+        'type' => 302
+    )
+);
+
+update_option( 'geoai_redirects', $redirects );
+```
+
+### Category Redirect
+
+```php
+// Redirect old category to new
+array(
+    'from' => '/category/old-name/*',
+    'to'   => '/category/new-name/',
+    'type' => 301
+)
+```
+
+### External Redirect
+
+```php
+// Redirect to external site
+array(
+    'from' => '/external',
+    'to'   => 'https://external-site.com',
+    'type' => 302
+)
+```
+
+### Remove Redirect
+
+```php
+$redirects = get_option( 'geoai_redirects', array() );
+
+// Remove redirect at index 0
+unset( $redirects[0] );
+
+// Re-index array
+$redirects = array_values( $redirects );
+
+update_option( 'geoai_redirects', $redirects );
+```
+
+## Pattern Matching
+
+### How It Works
+
+The class converts wildcard patterns to regex:
+
+```php
+// Pattern: /blog/*
+// Becomes: #^/blog/(.*)$#
+
+// Pattern: /*.html  
+// Becomes: #^/(.*)\.html$#
+```
+
+### Match Priority
+
+Redirects are checked in the order they are stored. First match wins:
+
+```php
+array(
+    array( 'from' => '/blog/special', 'to' => '/featured' ),  // Checked first
+    array( 'from' => '/blog/*', 'to' => '/news/' )            // Checked second
+)
+```
+
+## Admin Interface
+
+Manage redirects in WordPress admin:
+
+**Location:** GEO AI Settings > Redirects & 404
+
+**Features:**
+- Add/remove redirects
+- Edit existing redirects
+- Choose redirect type
+- Wildcard pattern support
+
+## Testing Redirects
+
+### Test with cURL
+
+```bash
+# Test 301 redirect
+curl -I https://yoursite.com/old-page
+
+# Should return:
+# HTTP/1.1 301 Moved Permanently
+# Location: /new-page
+```
+
+### Test with WordPress
+
+```php
+// Temporarily add test code
+add_action( 'template_redirect', function() {
+    if ( $_SERVER['REQUEST_URI'] === '/test-redirect' ) {
+        echo 'Redirect did not fire';
+        exit;
+    }
+}, 0 ); // Priority 0 runs before redirects (priority 1)
+```
+
+### Browser Testing
+
+1. Clear browser cache
+2. Visit old URL
+3. Check if redirected to new URL
+4. Check browser developer tools for status code
+
+## Troubleshooting
+
+### Redirect Not Working
+
+**Check redirect is saved:**
+```php
+$redirects = get_option( 'geoai_redirects', array() );
+var_dump( $redirects );
+```
+
+**Check pattern matching:**
+```php
+$pattern = '/blog/*';
+$request = '/blog/post-1';
+
+$pattern = str_replace( '*', '(.*)', $pattern );
+$pattern = '#^' . $pattern . '$#';
+
+if ( preg_match( $pattern, $request ) ) {
+    echo 'Match!';
+}
+```
+
+### Redirect Loop
+
+Avoid creating circular redirects:
+
+```php
+// BAD - Creates infinite loop
+array(
+    array( 'from' => '/page-a', 'to' => '/page-b' ),
+    array( 'from' => '/page-b', 'to' => '/page-a' )
+)
+```
+
+### Cached Redirects
+
+301 redirects are cached by browsers. To test:
+
+1. Use incognito/private browsing
+2. Clear browser cache
+3. Use different browser
+4. Test with cURL
+
+## Performance
+
+### Optimization Tips
+
+**Limit number of redirects:**
+- Each redirect requires pattern matching
+- Keep list under 100 redirects for best performance
+
+**Use specific patterns:**
+```php
+// More efficient
+array( 'from' => '/blog/old-post', 'to' => '/new-post' )
+
+// Less efficient  
+array( 'from' => '/*old-post', 'to' => '/new-post' )
+```
+
+**Order matters:**
+Place most frequently accessed redirects first in the array.
+
+## Security
+
+### Validation
+
+The class uses basic validation:
+
+```php
+if ( empty( $redirect['from'] ) || empty( $redirect['to'] ) ) {
+    continue; // Skip invalid redirects
+}
+```
+
+### Open Redirect Prevention
+
+Be careful with user input in redirect destinations:
+
+```php
+// BAD - Don't allow arbitrary redirects
+$to = $_GET['redirect'];
+
+// GOOD - Validate destination
+$allowed = array( '/page1', '/page2' );
+$to = in_array( $_GET['redirect'], $allowed ) ? $_GET['redirect'] : '/';
+```
+
+## Migration Tools
+
+### Import from CSV
+
+```php
+function import_redirects_from_csv( $file_path ) {
+    $redirects = array();
+    
+    if ( ( $handle = fopen( $file_path, 'r' ) ) !== false ) {
+        while ( ( $data = fgetcsv( $handle ) ) !== false ) {
+            $redirects[] = array(
+                'from' => $data[0],
+                'to'   => $data[1],
+                'type' => (int) ( $data[2] ?? 301 )
+            );
+        }
+        fclose( $handle );
+    }
+    
+    update_option( 'geoai_redirects', $redirects );
+}
+```
+
+### Export to CSV
+
+```php
+function export_redirects_to_csv() {
+    $redirects = get_option( 'geoai_redirects', array() );
+    
+    header( 'Content-Type: text/csv' );
+    header( 'Content-Disposition: attachment; filename="redirects.csv"' );
+    
+    $output = fopen( 'php://output', 'w' );
+    
+    foreach ( $redirects as $redirect ) {
+        fputcsv( $output, array(
+            $redirect['from'],
+            $redirect['to'],
+            $redirect['type']
+        ));
+    }
+    
+    fclose( $output );
+    exit;
+}
+```
+
+## Related Classes
+
+- [GeoAI_Admin](/api/admin) - Admin interface for managing redirects
+- [GeoAI_Sitemaps](/api/sitemaps) - XML sitemap generation

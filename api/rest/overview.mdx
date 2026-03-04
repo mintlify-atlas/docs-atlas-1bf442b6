@@ -1,0 +1,144 @@
+---
+title: 'REST API Overview'
+description: 'Learn how to interact with GEO AI using the WordPress REST API'
+icon: 'cloud'
+---
+
+## Introduction
+
+GEO AI provides a REST API for programmatically auditing content and applying quick fixes to your WordPress posts. The API is built on top of the WordPress REST API infrastructure and follows WordPress authentication standards.
+
+## Base URL
+
+All GEO AI API endpoints are prefixed with:
+
+```
+/wp-json/geoai/v1/
+```
+
+For example, if your WordPress site is at `https://example.com`, the full endpoint URL would be:
+
+```
+https://example.com/wp-json/geoai/v1/audit
+```
+
+## Authentication
+
+GEO AI REST API endpoints use WordPress's built-in authentication system. You can authenticate requests using any of the following methods:
+
+### Cookie Authentication
+
+When making requests from within WordPress (e.g., from the admin dashboard), WordPress automatically handles authentication via cookies. You must include a valid nonce in your requests:
+
+```javascript
+fetch('/wp-json/geoai/v1/audit', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'X-WP-Nonce': wpApiSettings.nonce
+  },
+  body: JSON.stringify({ post_id: 123 })
+});
+```
+
+### Application Passwords
+
+For external applications, use WordPress Application Passwords with HTTP Basic Authentication:
+
+```bash
+curl -X POST https://example.com/wp-json/geoai/v1/audit \
+  -u "username:application_password" \
+  -H "Content-Type: application/json" \
+  -d '{"post_id": 123}'
+```
+
+### OAuth or JWT
+
+GEO AI supports any WordPress REST API authentication plugin you have installed, such as OAuth 1.0a or JWT Authentication.
+
+## Permissions
+
+All GEO AI endpoints require specific WordPress capabilities:
+
+- **Audit endpoint**: Requires `edit_post` capability for the specified post
+- **Quick Fix endpoint**: Requires `edit_post` capability for the specified post
+
+If the user doesn't have the required permissions, the API returns a `403 Forbidden` response.
+
+## Common Response Format
+
+All GEO AI endpoints return JSON responses with a consistent structure:
+
+### Success Response
+
+```json
+{
+  "success": true,
+  "data": {
+    // Endpoint-specific data
+  }
+}
+```
+
+### Error Response
+
+```json
+{
+  "success": false,
+  "message": "Error description"
+}
+```
+
+## Error Codes
+
+GEO AI uses standard HTTP status codes:
+
+| Status Code | Description |
+|-------------|-------------|
+| `200` | Success - Request completed successfully |
+| `400` | Bad Request - Invalid or missing parameters |
+| `403` | Forbidden - User lacks required permissions |
+| `404` | Not Found - Resource doesn't exist |
+| `500` | Internal Server Error - Server-side error occurred |
+
+## Common Error Messages
+
+<ResponseField name="invalid_post" type="error">
+  The specified post ID does not exist or is invalid.
+</ResponseField>
+
+<ResponseField name="rest_forbidden" type="error">
+  User does not have permission to edit the specified post.
+</ResponseField>
+
+<ResponseField name="rest_invalid_param" type="error">
+  One or more request parameters are invalid or missing.
+</ResponseField>
+
+## Rate Limiting
+
+GEO AI respects WordPress's built-in rate limiting. If you're making requests from external applications, be mindful of your server's rate limits to avoid being blocked.
+
+## Available Endpoints
+
+GEO AI provides the following REST API endpoints:
+
+<CardGroup cols={2}>
+  <Card title="Audit" icon="magnifying-glass" href="/api/rest/audit">
+    Run a GEO optimization audit on a post
+  </Card>
+  <Card title="Quick Fix" icon="wrench" href="/api/rest/quick-fix">
+    Apply automated fixes to improve GEO score
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Audit Endpoint" icon="magnifying-glass" href="/api/rest/audit">
+    Learn how to run GEO audits programmatically
+  </Card>
+  <Card title="Quick Fix Endpoint" icon="wrench" href="/api/rest/quick-fix">
+    Discover how to apply automated optimizations
+  </Card>
+</CardGroup>

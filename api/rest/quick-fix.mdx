@@ -1,0 +1,405 @@
+---
+title: 'Quick Fix Endpoint'
+description: 'Apply automated GEO optimizations to WordPress posts via the REST API'
+icon: 'wrench'
+---
+
+## Overview
+
+The Quick Fix endpoint applies automated optimizations to WordPress posts based on issues identified during a GEO audit. It can insert Answer Card blocks, add author information, and apply other content improvements.
+
+## Endpoint Details
+
+<ParamField path="method" type="string" required>
+  POST
+</ParamField>
+
+<ParamField path="endpoint" type="string" required>
+  `/wp-json/geoai/v1/quick-fix`
+</ParamField>
+
+## Authentication
+
+Requires authentication with a user account that has `edit_post` capability for the specified post.
+
+See [REST API Overview](/api/rest/overview#authentication) for authentication methods.
+
+## Request Parameters
+
+<ParamField body="post_id" type="integer" required>
+  The ID of the WordPress post to apply the fix to. Must be a valid post ID that exists in your WordPress database.
+</ParamField>
+
+<ParamField body="fix_id" type="string" required>
+  The identifier of the fix to apply. Available fix IDs:
+  
+  - `insert_answer_card` - Inserts an Answer Card block at the beginning of the post
+  - `add_author` - Adds author byline information (coming in future update)
+</ParamField>
+
+## Response
+
+### Success Response (200)
+
+When the fix is applied successfully:
+
+<ResponseField name="success" type="boolean">
+  Always `true` for successful requests.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Confirmation message: "Quick fix applied successfully."
+</ResponseField>
+
+<ResponseField name="data" type="object" optional>
+  Additional data returned by specific fixes (not present for all fix types).
+  
+  <ResponseField name="data.content" type="string">
+    The updated post content after applying the fix.
+  </ResponseField>
+  
+  <ResponseField name="data.notice" type="string">
+    Additional information about what was changed.
+  </ResponseField>
+</ResponseField>
+
+### Error Response (500)
+
+When the fix fails to apply:
+
+<ResponseField name="success" type="boolean">
+  Always `false` for failed requests.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  Error message describing what went wrong.
+</ResponseField>
+
+## Examples
+
+### cURL Example
+
+```bash
+# Insert Answer Card block
+curl -X POST https://example.com/wp-json/geoai/v1/quick-fix \
+  -u "username:application_password" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "post_id": 123,
+    "fix_id": "insert_answer_card"
+  }'
+```
+
+### JavaScript (Fetch API)
+
+```javascript
+// From within WordPress admin (using nonce)
+fetch('/wp-json/geoai/v1/quick-fix', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'X-WP-Nonce': wpApiSettings.nonce
+  },
+  body: JSON.stringify({
+    post_id: 123,
+    fix_id: 'insert_answer_card'
+  })
+})
+.then(response => response.json())
+.then(data => {
+  if (data.success) {
+    console.log('Fix applied:', data.message);
+    if (data.data) {
+      console.log('Notice:', data.data.notice);
+    }
+  } else {
+    console.error('Fix failed:', data.message);
+  }
+})
+.catch(error => console.error('Request failed:', error));
+```
+
+### PHP (WordPress)
+
+```php
+$response = wp_remote_post(
+  rest_url('geoai/v1/quick-fix'),
+  array(
+    'headers' => array(
+      'Content-Type' => 'application/json',
+      'X-WP-Nonce' => wp_create_nonce('wp_rest')
+    ),
+    'body' => json_encode(array(
+      'post_id' => 123,
+      'fix_id' => 'insert_answer_card'
+    ))
+  )
+);
+
+if (!is_wp_error($response)) {
+  $body = json_decode(wp_remote_retrieve_body($response), true);
+  
+  if ($body['success']) {
+    echo $body['message'];
+    if (isset($body['data']['notice'])) {
+      echo ' - ' . $body['data']['notice'];
+    }
+  } else {
+    echo 'Error: ' . $body['message'];
+  }
+}
+```
+
+### Python (Requests)
+
+```python
+import requests
+from requests.auth import HTTPBasicAuth
+
+response = requests.post(
+    'https://example.com/wp-json/geoai/v1/quick-fix',
+    auth=HTTPBasicAuth('username', 'application_password'),
+    json={
+        'post_id': 123,
+        'fix_id': 'insert_answer_card'
+    }
+)
+
+if response.status_code == 200:
+    data = response.json()
+    if data['success']:
+        print(f"Success: {data['message']}")
+        if 'data' in data and 'notice' in data['data']:
+            print(f"Notice: {data['data']['notice']}")
+    else:
+        print(f"Failed: {data['message']}")
+else:
+    print(f"Request failed: {response.status_code}")
+```
+
+## Response Examples
+
+### Successful Answer Card Insertion
+
+```json
+{
+  "success": true,
+  "message": "Quick fix applied successfully.",
+  "data": {
+    "content": "<!-- wp:geoai/answer-card {\"tldr\":\"\",\"keyFacts\":[]} />\n\n<!-- wp:paragraph -->\n<p>Your existing post content...</p>\n<!-- /wp:paragraph -->",
+    "notice": "Answer Card inserted at the top of the post."
+  }
+}
+```
+
+### Successful Fix (No Additional Data)
+
+```json
+{
+  "success": true,
+  "message": "Quick fix applied successfully."
+}
+```
+
+## Error Responses
+
+### Missing Required Parameters
+
+```json
+{
+  "code": "rest_missing_callback_param",
+  "message": "Missing parameter(s): fix_id",
+  "data": {
+    "status": 400,
+    "params": ["fix_id"]
+  }
+}
+```
+
+### Insufficient Permissions
+
+```json
+{
+  "code": "rest_forbidden",
+  "message": "Sorry, you are not allowed to edit this post.",
+  "data": {
+    "status": 403
+  }
+}
+```
+
+### Invalid Fix ID
+
+```json
+{
+  "success": false,
+  "message": "Invalid fix ID."
+}
+```
+
+### Invalid Post ID
+
+```json
+{
+  "success": false,
+  "message": "Post not found."
+}
+```
+
+### Answer Card Already Exists
+
+```json
+{
+  "success": false,
+  "message": "Answer Card already exists in this post."
+}
+```
+
+### Post Update Failed
+
+```json
+{
+  "success": false,
+  "message": "Failed to update post: Database error occurred."
+}
+```
+
+## Available Fixes
+
+### insert_answer_card
+
+Inserts a GEO AI Answer Card block at the beginning of the post content.
+
+**What it does:**
+- Checks if an Answer Card block already exists
+- Inserts the block markup: `<!-- wp:geoai/answer-card {"tldr":"","keyFacts":[]} /-->`
+- Places it at the very top of the post content
+- Returns the updated content
+
+**Errors:**
+- Returns error if Answer Card already exists in the post
+- Returns error if post ID is invalid
+- Returns error if post update fails
+
+**Implementation:** See `/home/daytona/workspace/source/includes/class-geoai-rest.php:150`
+
+### add_author
+
+<Note>
+  This fix is planned for a future release. Currently returns an empty success response.
+</Note>
+
+Will add author byline information to enhance post authority signals.
+
+## Implementation Details
+
+The Quick Fix endpoint is implemented in `/home/daytona/workspace/source/includes/class-geoai-rest.php:109`.
+
+### Permission Check
+
+The endpoint verifies that the current user has `edit_post` capability for the specified post before applying any fixes.
+
+### Fix Application Process
+
+1. Validates `post_id` and `fix_id` parameters
+2. Checks user permissions
+3. Routes to the appropriate fix handler based on `fix_id`
+4. Applies the fix (may modify post content)
+5. Returns success confirmation with optional additional data
+
+### Content Modification
+
+Fixes that modify post content (like `insert_answer_card`) use `wp_update_post()` to save changes. This triggers all standard WordPress hooks, so other plugins can respond to the changes.
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Run Audit First">
+    Always run an audit first to identify which fixes are needed. The audit response includes `fix_available` flags for each issue.
+  </Accordion>
+  
+  <Accordion title="Check for Existing Content">
+    Some fixes (like Answer Card insertion) will fail if the content already exists. Handle these errors gracefully.
+  </Accordion>
+  
+  <Accordion title="Backup Before Batch Operations">
+    If applying fixes to multiple posts programmatically, ensure you have backups. Fixes modify post content directly.
+  </Accordion>
+  
+  <Accordion title="Validate Fix IDs">
+    Only use fix IDs that are documented as available. Invalid fix IDs return an error.
+  </Accordion>
+  
+  <Accordion title="Monitor for Future Fixes">
+    New fix types may be added in future updates. Check the audit response for available fixes.
+  </Accordion>
+</AccordionGroup>
+
+## Workflow Example
+
+Here's a complete workflow for auditing and fixing a post:
+
+```javascript
+async function auditAndFix(postId) {
+  // Step 1: Run audit
+  const auditResponse = await fetch('/wp-json/geoai/v1/audit', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-WP-Nonce': wpApiSettings.nonce
+    },
+    body: JSON.stringify({ post_id: postId })
+  });
+  
+  const auditData = await auditResponse.json();
+  
+  if (!auditData.success) {
+    console.error('Audit failed:', auditData.message);
+    return;
+  }
+  
+  // Step 2: Find fixable issues
+  const fixableIssues = auditData.data.issues.filter(issue => issue.fix_available);
+  
+  console.log(`Found ${fixableIssues.length} fixable issues`);
+  
+  // Step 3: Apply fixes
+  for (const issue of fixableIssues) {
+    const fixResponse = await fetch('/wp-json/geoai/v1/quick-fix', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-WP-Nonce': wpApiSettings.nonce
+      },
+      body: JSON.stringify({
+        post_id: postId,
+        fix_id: issue.id
+      })
+    });
+    
+    const fixData = await fixResponse.json();
+    
+    if (fixData.success) {
+      console.log(`Fixed: ${issue.id}`);
+    } else {
+      console.error(`Failed to fix ${issue.id}: ${fixData.message}`);
+    }
+  }
+  
+  console.log('All fixes applied');
+}
+
+// Run it
+auditAndFix(123);
+```
+
+## Related Endpoints
+
+<CardGroup cols={2}>
+  <Card title="Audit" icon="magnifying-glass" href="/api/rest/audit">
+    Run a GEO audit to identify issues before applying fixes
+  </Card>
+  <Card title="API Overview" icon="book" href="/api/rest/overview">
+    Learn about authentication and common patterns
+  </Card>
+</CardGroup>

@@ -1,0 +1,253 @@
+---
+title: Readability Analyzer
+description: Analyzes content readability using Flesch Reading Ease and other metrics
+---
+
+## Overview
+
+The `Readability_Analyzer` class evaluates content readability using multiple metrics including the Flesch Reading Ease score, sentence length, paragraph structure, and linguistic patterns. It helps ensure content is accessible to the target audience.
+
+**Namespace:** `GeoAI\Analyzers`
+
+**File:** `includes/analyzers/class-readability-analyzer.php`
+
+## Purpose
+
+The Readability Analyzer assesses content quality through:
+
+- **Flesch Reading Ease Score**: Industry-standard readability metric
+- **Sentence Length**: Identifies overly complex sentences
+- **Paragraph Length**: Ensures scannable content structure
+- **Subheading Distribution**: Validates proper content hierarchy
+- **Passive Voice Detection**: Encourages active voice usage
+- **Transition Words**: Checks for proper content flow
+
+## Scoring Algorithm
+
+The analyzer uses a weighted scoring system with a maximum of 100 points:
+
+| Component | Points | Description |
+|-----------|--------|-------------|
+| Flesch Reading Ease | 25 | Based on sentence length and syllable count |
+| Sentence Length | 20 | Checks for sentences > 20 words |
+| Paragraph Length | 15 | Validates paragraphs < 150 words |
+| Subheading Distribution | 15 | Ensures H2-H6 tags every 250-300 words |
+| Passive Voice | 15 | Limits passive voice to < 20% |
+| Transition Words | 10 | Aims for 30%+ sentences with transitions |
+
+### Flesch Reading Ease Scale
+
+| Score | Difficulty | Reading Level | Points Awarded |
+|-------|-----------|---------------|----------------|
+| 90-100 | Very Easy | 5th grade | 25 |
+| 80-89 | Easy | 6th grade | 25 |
+| 70-79 | Fairly Easy | 7th grade | 25 |
+| 60-69 | Standard | 8th-9th grade | 25 |
+| 50-59 | Fairly Difficult | 10th-12th grade | 18 |
+| 30-49 | Difficult | College | 10 |
+| 0-29 | Very Difficult | College graduate | 10 |
+
+**Target:** Score of 60+ for general audiences
+
+## Public Methods
+
+### analyze()
+
+Analyzes content readability using multiple metrics.
+
+<ParamField path="content" type="string" required>
+  HTML or plain text content to analyze
+</ParamField>
+
+**Returns:** `array` - Analysis results
+
+**Return Structure:**
+
+```php
+array(
+    'score'              => int,   // Overall score 0-100
+    'issues'             => array, // Array of issue objects
+    'flesch_score'       => float, // Flesch Reading Ease score
+    'avg_sentence_length' => float, // Average words per sentence
+    'word_count'         => int    // Total word count
+)
+```
+
+## Usage Examples
+
+### Basic Analysis
+
+```php
+use GeoAI\Analyzers\Readability_Analyzer;
+
+$analyzer = new Readability_Analyzer();
+
+$result = $analyzer->analyze( $post_content );
+
+echo "Readability Score: {$result['score']}/100<br>";
+echo "Flesch Reading Ease: {$result['flesch_score']}<br>";
+echo "Average Sentence Length: {$result['avg_sentence_length']} words<br>";
+echo "Word Count: {$result['word_count']}";
+```
+
+### Display Readability Issues
+
+```php
+$result = $analyzer->analyze( $content );
+
+if ( $result['score'] < 60 ) {
+    echo '<div class="readability-warning">';
+    echo '<h4>Readability Issues:</h4><ul>';
+    
+    foreach ( $result['issues'] as $issue ) {
+        if ( $issue['severity'] === 'warning' || $issue['severity'] === 'error' ) {
+            echo "<li>{$issue['message']}</li>";
+        }
+    }
+    
+    echo '</ul></div>';
+}
+```
+
+### Reading Level Indicator
+
+```php
+function get_reading_level( $flesch_score ) {
+    if ( $flesch_score >= 90 ) return 'Very Easy (5th grade)';
+    if ( $flesch_score >= 80 ) return 'Easy (6th grade)';
+    if ( $flesch_score >= 70 ) return 'Fairly Easy (7th grade)';
+    if ( $flesch_score >= 60 ) return 'Standard (8th-9th grade)';
+    if ( $flesch_score >= 50 ) return 'Fairly Difficult (High School)';
+    if ( $flesch_score >= 30 ) return 'Difficult (College)';
+    return 'Very Difficult (Graduate level)';
+}
+
+$result = $analyzer->analyze( $content );
+$level = get_reading_level( $result['flesch_score'] );
+
+echo "Reading Level: {$level}";
+```
+
+### Post Editor Integration
+
+```php
+function analyze_post_readability( $post_id ) {
+    $post = get_post( $post_id );
+    $analyzer = new Readability_Analyzer();
+    
+    $result = $analyzer->analyze( $post->post_content );
+    
+    // Save metrics
+    update_post_meta( $post_id, '_readability_score', $result['score'] );
+    update_post_meta( $post_id, '_flesch_score', $result['flesch_score'] );
+    update_post_meta( $post_id, '_avg_sentence_length', $result['avg_sentence_length'] );
+    
+    return $result;
+}
+
+add_action( 'save_post', 'analyze_post_readability' );
+```
+
+### Detailed Issue Analysis
+
+```php
+$result = $analyzer->analyze( $content );
+
+$issue_categories = array(
+    'flesch'     => array(),
+    'sentences'  => array(),
+    'paragraphs' => array(),
+    'structure'  => array(),
+    'voice'      => array(),
+);
+
+foreach ( $result['issues'] as $issue ) {
+    if ( strpos( $issue['id'], 'flesch' ) !== false ) {
+        $issue_categories['flesch'][] = $issue;
+    } elseif ( strpos( $issue['id'], 'sentence' ) !== false ) {
+        $issue_categories['sentences'][] = $issue;
+    } elseif ( strpos( $issue['id'], 'paragraph' ) !== false ) {
+        $issue_categories['paragraphs'][] = $issue;
+    } elseif ( strpos( $issue['id'], 'subheading' ) !== false ) {
+        $issue_categories['structure'][] = $issue;
+    } elseif ( strpos( $issue['id'], 'passive' ) !== false ) {
+        $issue_categories['voice'][] = $issue;
+    }
+}
+
+// Display categorized feedback
+```
+
+## Flesch Reading Ease Formula
+
+The analyzer uses the standard Flesch Reading Ease formula:
+
+```
+FRE = 206.835 - 1.015 × (total words / total sentences) - 84.6 × (total syllables / total words)
+```
+
+Where:
+- Higher scores = easier to read
+- Score is capped between 0 and 100
+- Syllables are estimated using pattern matching
+
+## Thresholds and Limits
+
+### Sentence Length
+- **Threshold**: 20 words per sentence
+- **Warning**: > 25% of sentences exceed threshold
+- **Recommendation**: Keep most sentences under 20 words
+
+### Paragraph Length
+- **Threshold**: 150 words per paragraph
+- **Warning**: > 30% of paragraphs exceed threshold
+- **Recommendation**: Break long paragraphs into smaller chunks
+
+### Subheadings
+- **Minimum Content**: 300 words before subheadings required
+- **Frequency**: One subheading every 250-300 words
+- **Tags**: H2-H6 elements
+
+### Passive Voice
+- **Target**: < 20% of sentences
+- **Detection**: Pattern matching for "is/are/was/were" + past participle
+
+### Transition Words
+- **Target**: 30%+ sentences with transition words
+- **Examples**: however, therefore, furthermore, for example
+
+## Issue IDs Reference
+
+| Issue ID | Severity | Description |
+|----------|----------|-------------|
+| `no_content` | error | No content provided |
+| `flesch_good` | good | Flesch score ≥ 60 |
+| `flesch_ok` | ok | Flesch score 50-59 |
+| `flesch_difficult` | warning | Flesch score < 50 |
+| `sentences_too_long` | warning | > 25% sentences exceed 20 words |
+| `sentences_good` | good | Sentence length optimal |
+| `paragraphs_too_long` | warning | > 30% paragraphs exceed 150 words |
+| `paragraphs_good` | good | Paragraph length optimal |
+| `no_subheadings` | error | No H2-H6 tags found |
+| `few_subheadings` | warning | Subheadings too sparse |
+| `subheadings_good` | good | Good subheading distribution |
+| `content_short` | ok | Content < 300 words |
+| `passive_voice_high` | warning | > 20% passive voice |
+| `passive_voice_good` | good | Active voice usage good |
+| `few_transitions` | warning | < 20% sentences with transitions |
+| `transitions_good` | good | Good transition word usage |
+
+## Best Practices
+
+1. **Target Flesch Score**: Aim for 60+ for general audiences
+2. **Sentence Variety**: Mix short and medium sentences; avoid consistently long ones
+3. **Paragraph Structure**: Keep paragraphs under 150 words for web readability
+4. **Subheadings**: Add H2-H6 tags every 250-300 words to break up content
+5. **Active Voice**: Use active voice in at least 80% of sentences
+6. **Transition Words**: Include transition words in 30%+ sentences for better flow
+
+## Related
+
+- [Keyword Analyzer](/api/analyzers/keyword)
+- [Content Insights](/api/analyzers/content-insights)
+- [SEO Dashboard](/api/analyzers/seo-dashboard)

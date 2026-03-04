@@ -1,0 +1,358 @@
+---
+title: 'GeoAI_Meta'
+description: 'Meta tags handler for titles, descriptions, robots directives, and canonical URLs'
+---
+
+## Overview
+
+The `GeoAI_Meta` class manages all meta tag output in the website head section. It handles SEO titles, meta descriptions, robots directives, and canonical URLs. The class respects compatibility mode to avoid conflicts with other SEO plugins.
+
+**Namespace:** `GeoAI\Core`
+
+**Location:** `includes/class-geoai-meta.php`
+
+## Key Features
+
+- Custom SEO title output
+- Meta description generation
+- Robots meta tag control
+- Canonical URL management
+- Template variable parsing
+- Post editor meta box
+- Compatibility mode support
+
+## Public Methods
+
+### get_instance()
+
+Returns the singleton instance of the meta class.
+
+```php
+public static function get_instance()
+```
+
+**Returns:** `GeoAI_Meta` - The singleton instance
+
+**Example:**
+```php
+$meta = \GeoAI\Core\GeoAI_Meta::get_instance();
+```
+
+### filter_title()
+
+Filters the document title with custom SEO title.
+
+```php
+public function filter_title( $title )
+```
+
+<ParamField path="title" type="string" required>
+  The original document title
+</ParamField>
+
+**Returns:** `string` - Filtered title or original if no custom title set
+
+**Hooks:** `pre_get_document_title`
+
+**Example:**
+```php
+add_filter( 'pre_get_document_title', function( $title ) {
+    return $title . ' - Custom Suffix';
+}, 20 );
+```
+
+### output_meta_tags()
+
+Outputs meta tags in the website head section.
+
+```php
+public function output_meta_tags()
+```
+
+**Hooks:** `wp_head` (priority 1)
+
+**Outputs:**
+- `meta name="description"` - Meta description
+- `meta name="robots"` - Robots directives
+- `link rel="canonical"` - Canonical URL
+
+### add_meta_box()
+
+Adds GEO AI SEO meta box to post editor screens.
+
+```php
+public function add_meta_box()
+```
+
+**Hooks:** `add_meta_boxes`
+
+**Added to:** All public post types (posts, pages, custom post types)
+
+**Position:** Normal, High priority
+
+### render_meta_box()
+
+Renders the SEO meta box content in post editor.
+
+```php
+public function render_meta_box( $post )
+```
+
+<ParamField path="post" type="WP_Post" required>
+  The post object being edited
+</ParamField>
+
+**Fields:**
+- SEO Title (max 70 characters)
+- Meta Description (max 165 characters)
+- Robots Meta (dropdown)
+- AI Generate button
+
+### save_meta_box()
+
+Saves meta box data when post is saved.
+
+```php
+public function save_meta_box( $post_id )
+```
+
+<ParamField path="post_id" type="int" required>
+  The post ID being saved
+</ParamField>
+
+**Hooks:** `save_post`
+
+**Security:**
+- Nonce verification
+- Autosave check
+- Capability check
+
+## Template Variables
+
+The following variables can be used in title and meta templates:
+
+### Available Variables
+
+<ParamField path="%%title%%" type="string">
+  Post or page title
+</ParamField>
+
+<ParamField path="%%sitename%%" type="string">
+  Site name from WordPress settings
+</ParamField>
+
+<ParamField path="%%sitedesc%%" type="string">
+  Site tagline/description
+</ParamField>
+
+<ParamField path="%%sep%%" type="string">
+  Separator character (default: |)
+</ParamField>
+
+<ParamField path="%%excerpt%%" type="string">
+  Post excerpt
+</ParamField>
+
+<ParamField path="%%date%%" type="string">
+  Post publish date
+</ParamField>
+
+<ParamField path="%%modified%%" type="string">
+  Post modified date
+</ParamField>
+
+<ParamField path="%%id%%" type="string">
+  Post ID
+</ParamField>
+
+<ParamField path="%%author%%" type="string">
+  Post author name
+</ParamField>
+
+### Template Examples
+
+```php
+// Post title template
+'%%title%% %%sep%% %%sitename%%'
+// Output: "My Blog Post | My Website"
+
+// Page title template  
+'%%title%% - %%sitename%%'
+// Output: "About Us - My Website"
+
+// Homepage title
+'%%sitename%% %%sep%% %%sitedesc%%'
+// Output: "My Website | Your trusted source"
+
+// Date-based title
+'%%title%% (%%date%%) - %%sitename%%'
+// Output: "News Article (March 4, 2026) - My Website"
+```
+
+## Post Meta Keys
+
+### Stored Meta Data
+
+<ParamField path="_geoai_title" type="string">
+  Custom SEO title for the post
+</ParamField>
+
+<ParamField path="_geoai_meta_desc" type="string">
+  Custom meta description for the post
+</ParamField>
+
+<ParamField path="_geoai_robots" type="string">
+  Robots meta directives (e.g., "noindex,follow")
+</ParamField>
+
+### Reading Meta Data
+
+```php
+$title = get_post_meta( $post_id, '_geoai_title', true );
+$description = get_post_meta( $post_id, '_geoai_meta_desc', true );
+$robots = get_post_meta( $post_id, '_geoai_robots', true );
+```
+
+### Updating Meta Data
+
+```php
+update_post_meta( $post_id, '_geoai_title', 'Custom SEO Title' );
+update_post_meta( $post_id, '_geoai_meta_desc', 'Custom meta description here' );
+update_post_meta( $post_id, '_geoai_robots', 'noindex,follow' );
+```
+
+## Robots Meta Options
+
+### Available Directives
+
+<ParamField path="default" type="string">
+  Empty value, uses default behavior (index, follow)
+</ParamField>
+
+<ParamField path="noindex,follow" type="string">
+  Prevent indexing but allow following links
+</ParamField>
+
+<ParamField path="index,nofollow" type="string">
+  Allow indexing but don't follow links
+</ParamField>
+
+<ParamField path="noindex,nofollow" type="string">
+  Prevent indexing and don't follow links
+</ParamField>
+
+## Usage Examples
+
+### Get Current Page Title
+
+```php
+$meta = \GeoAI\Core\GeoAI_Meta::get_instance();
+
+// The title is automatically filtered
+$title = wp_get_document_title();
+```
+
+### Set Custom Meta for Post
+
+```php
+$post_id = 123;
+
+update_post_meta( $post_id, '_geoai_title', 'Complete Guide to WordPress SEO' );
+update_post_meta( $post_id, '_geoai_meta_desc', 'Learn everything about WordPress SEO in this comprehensive guide. Improve rankings today!' );
+```
+
+### Noindex a Post
+
+```php
+update_post_meta( $post_id, '_geoai_robots', 'noindex,follow' );
+```
+
+### Get Meta Description with Fallback
+
+```php
+if ( is_singular() ) {
+    $post_id = get_the_ID();
+    $description = get_post_meta( $post_id, '_geoai_meta_desc', true );
+    
+    if ( empty( $description ) ) {
+        // Fallback to excerpt
+        $description = wp_trim_words( get_the_excerpt(), 30 );
+    }
+    
+    echo esc_attr( $description );
+}
+```
+
+### Custom Template Variables
+
+Extend available variables with a filter:
+
+```php
+add_filter( 'geoai_template_variables', function( $variables ) {
+    $variables['%%custom%%'] = 'My Custom Value';
+    return $variables;
+});
+```
+
+## Compatibility Mode
+
+The class checks compatibility mode before outputting meta tags:
+
+```php
+if ( ! GeoAI_Compat::get_instance()->should_output_meta() ) {
+    return; // Skip output in coexist mode
+}
+```
+
+This prevents duplicate meta tags when using GEO AI alongside other SEO plugins.
+
+## Character Limits
+
+### Recommended Lengths
+
+<ParamField path="SEO Title" type="string">
+  50-60 characters (max 70) to avoid truncation in search results
+</ParamField>
+
+<ParamField path="Meta Description" type="string">
+  150-160 characters (max 165) for optimal display in SERPs
+</ParamField>
+
+### Live Character Counter
+
+The meta box includes JavaScript character counters that update in real-time:
+
+```javascript
+jQuery('#geoai_title').on('input', function() {
+    var length = jQuery(this).val().length;
+    // Update counter display
+});
+```
+
+## Meta Box Features
+
+### AI Generation Integration
+
+The meta box includes an "Generate with AI" button that:
+
+1. Sends AJAX request to `geoai_generate_meta` action
+2. Receives optimized title and description from Gemini API
+3. Auto-fills the meta fields
+4. Shows success/error status
+
+### JavaScript Events
+
+```javascript
+// Listen for AI generation
+jQuery(document).on('geoai_meta_generated', function(event, data) {
+    console.log('Title:', data.title);
+    console.log('Description:', data.description);
+});
+```
+
+## Related Classes
+
+- [GeoAI_Admin](/api/admin) - Admin interface and meta box rendering
+- [GeoAI_Analyzer](/api/analyzer) - AI-powered meta generation
+- [GeoAI_Compat](/api/compat) - SEO plugin compatibility
+- [GeoAI_Social](/api/social) - Social media meta tags

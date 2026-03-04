@@ -1,0 +1,367 @@
+---
+title: 'GeoAI_Sitemaps'
+description: 'XML sitemap generator for search engine crawling and indexation'
+---
+
+## Overview
+
+The `GeoAI_Sitemaps` class generates XML sitemaps to help search engines discover and crawl your content. It creates sitemap index files and individual sitemaps for different post types, with support for images.
+
+**Namespace:** `GeoAI\Core`
+
+**Location:** `includes/class-geoai-sitemaps.php`
+
+## Key Features
+
+- XML sitemap generation
+- Sitemap index support
+- Multiple post type sitemaps
+- Image sitemap integration
+- Dynamic URL rewriting
+- Configurable post types
+- Last modified dates
+- Priority and change frequency hints
+
+## Public Methods
+
+### get_instance()
+
+Returns the singleton instance of the sitemaps class.
+
+```php
+public static function get_instance()
+```
+
+**Returns:** `GeoAI_Sitemaps` - The singleton instance
+
+**Example:**
+```php
+$sitemaps = \GeoAI\Core\GeoAI_Sitemaps::get_instance();
+```
+
+### add_rewrite_rules()
+
+Adds URL rewrite rules for sitemap access.
+
+```php
+public function add_rewrite_rules()
+```
+
+**Hooks:** `init`
+
+**Registered URLs:**
+- `/sitemap.xml` - Main sitemap index
+- `/sitemap-{type}.xml` - Individual post type sitemaps
+
+**Examples:**
+- `https://example.com/sitemap.xml`
+- `https://example.com/sitemap-post.xml`
+- `https://example.com/sitemap-page.xml`
+
+### serve_sitemap()
+
+Serves the requested sitemap as XML.
+
+```php
+public function serve_sitemap()
+```
+
+**Hooks:** `template_redirect`
+
+**Behavior:**
+- Sets `Content-Type: application/xml` header
+- Generates sitemap index or individual sitemap
+- Exits after output
+
+## Sitemap Types
+
+### Sitemap Index
+
+The main sitemap at `/sitemap.xml` lists all available sitemaps:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <sitemap>
+    <loc>https://example.com/sitemap-post.xml</loc>
+    <lastmod>2026-03-04T10:30:00+00:00</lastmod>
+  </sitemap>
+  <sitemap>
+    <loc>https://example.com/sitemap-page.xml</loc>
+    <lastmod>2026-03-04T10:30:00+00:00</lastmod>
+  </sitemap>
+</sitemapindex>
+```
+
+### Individual Sitemaps
+
+Each post type gets its own sitemap:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" 
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+  <url>
+    <loc>https://example.com/post-slug/</loc>
+    <lastmod>2026-03-04T10:30:00+00:00</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+    <image:image>
+      <image:loc>https://example.com/image.jpg</image:loc>
+    </image:image>
+  </url>
+</urlset>
+```
+
+## Configuration
+
+### Enable Sitemaps
+
+```php
+$settings = array(
+    'enabled' => true,           // Enable sitemap generation
+    'images' => true,            // Include images in sitemaps
+    'post_types' => array(       // Post types to include
+        'post',
+        'page',
+        'custom_post_type'
+    )
+);
+
+update_option( 'geoai_sitemaps', $settings );
+```
+
+### Settings Reference
+
+<ParamField path="enabled" type="boolean" default="true">
+  Enable or disable sitemap generation
+</ParamField>
+
+<ParamField path="images" type="boolean" default="true">
+  Include featured images in sitemap URLs
+</ParamField>
+
+<ParamField path="post_types" type="array" default="['post', 'page']">
+  Array of post types to include in sitemaps
+</ParamField>
+
+## Sitemap Parameters
+
+### URL Priority
+
+All URLs use a default priority of `0.8`:
+
+```xml
+<priority>0.8</priority>
+```
+
+This can be customized per URL using WordPress filters.
+
+### Change Frequency
+
+All URLs use `weekly` as the default change frequency:
+
+```xml
+<changefreq>weekly</changefreq>
+```
+
+### Last Modified
+
+Uses the post's last modified date:
+
+```xml
+<lastmod>2026-03-04T14:30:00+00:00</lastmod>
+```
+
+## Usage Examples
+
+### Basic Setup
+
+```php
+// Enable sitemaps with images
+update_option( 'geoai_sitemaps', array(
+    'enabled' => true,
+    'images' => true
+));
+
+// Flush rewrite rules
+flush_rewrite_rules();
+```
+
+### Add Custom Post Type
+
+```php
+$settings = get_option( 'geoai_sitemaps', array() );
+$settings['post_types'] = array( 'post', 'page', 'portfolio' );
+update_option( 'geoai_sitemaps', $settings );
+
+// Flush rewrite rules to activate
+flush_rewrite_rules();
+```
+
+### Disable Image Sitemaps
+
+```php
+$settings = get_option( 'geoai_sitemaps', array() );
+$settings['images'] = false;
+update_option( 'geoai_sitemaps', $settings );
+```
+
+### Submit to Google Search Console
+
+```php
+// Get sitemap URL
+$sitemap_url = home_url( '/sitemap.xml' );
+
+// Submit via HTTP (requires Google Search Console API)
+$api_url = 'https://www.google.com/ping?sitemap=' . urlencode( $sitemap_url );
+wp_remote_get( $api_url );
+```
+
+### Verify Sitemap Output
+
+```php
+// Test sitemap generation
+$sitemaps = \GeoAI\Core\GeoAI_Sitemaps::get_instance();
+$url = home_url( '/sitemap.xml' );
+
+$response = wp_remote_get( $url );
+if ( ! is_wp_error( $response ) ) {
+    $body = wp_remote_retrieve_body( $response );
+    $xml = simplexml_load_string( $body );
+    
+    if ( $xml ) {
+        echo 'Valid XML sitemap with ' . count( $xml->sitemap ) . ' sitemaps';
+    }
+}
+```
+
+## Sitemap Limits
+
+### Posts Per Sitemap
+
+Each sitemap includes up to **1,000 posts**:
+
+```php
+'posts_per_page' => 1000
+```
+
+For sites with more content, consider implementing sitemap pagination.
+
+### XML Size Limit
+
+Sitemaps should stay under 50MB (uncompressed) and 50,000 URLs per Google's guidelines.
+
+## Rewrite Rules
+
+After enabling sitemaps or changing settings, flush rewrite rules:
+
+```php
+flush_rewrite_rules();
+```
+
+Or use WP-CLI:
+
+```bash
+wp rewrite flush
+```
+
+## Search Engine Submission
+
+### Google Search Console
+
+1. Go to Google Search Console
+2. Navigate to Sitemaps section
+3. Submit: `https://yourdomain.com/sitemap.xml`
+
+### Bing Webmaster Tools
+
+1. Go to Bing Webmaster Tools
+2. Navigate to Sitemaps section
+3. Submit: `https://yourdomain.com/sitemap.xml`
+
+### robots.txt Entry
+
+Add sitemap location to robots.txt:
+
+```
+User-agent: *
+Allow: /
+
+Sitemap: https://yourdomain.com/sitemap.xml
+```
+
+## Troubleshooting
+
+### Sitemap Returns 404
+
+**Solution:** Flush rewrite rules
+
+```php
+flush_rewrite_rules();
+```
+
+### Missing Posts in Sitemap
+
+Check post status (only published posts are included):
+
+```php
+$posts = get_posts( array(
+    'post_type' => 'post',
+    'post_status' => 'publish',
+    'posts_per_page' => -1
+));
+
+echo 'Found ' . count( $posts ) . ' published posts';
+```
+
+### Images Not Appearing
+
+Verify image sitemap setting:
+
+```php
+$settings = get_option( 'geoai_sitemaps', array() );
+var_dump( $settings['images'] ); // Should be true
+```
+
+### Invalid XML
+
+Validate XML output:
+
+```bash
+curl https://yourdomain.com/sitemap.xml | xmllint --format -
+```
+
+## Performance Optimization
+
+### Caching Sitemaps
+
+For large sites, cache sitemap output:
+
+```php
+add_action( 'template_redirect', function() {
+    if ( get_query_var( 'geoai_sitemap' ) ) {
+        header( 'Cache-Control: public, max-age=3600' );
+    }
+});
+```
+
+### Query Optimization
+
+The class uses optimized queries:
+
+```php
+array(
+    'post_type' => $type,
+    'post_status' => 'publish',
+    'posts_per_page' => 1000,
+    'orderby' => 'modified',
+    'order' => 'DESC'
+)
+```
+
+## Related Classes
+
+- [GeoAI_Meta](/api/meta) - Meta tags and canonical URLs
+- [GeoAI_Schema](/api/schema) - Structured data markup
+- [GeoAI_Redirects](/api/redirects) - URL redirects

@@ -1,0 +1,422 @@
+---
+title: 'GeoAI_Breadcrumbs'
+description: 'Breadcrumb navigation with Schema.org BreadcrumbList markup'
+---
+
+## Overview
+
+The `GeoAI_Breadcrumbs` class provides breadcrumb navigation functionality with built-in Schema.org BreadcrumbList structured data. Breadcrumbs improve user navigation and SEO by showing the page hierarchy.
+
+**Namespace:** `GeoAI\Core`
+
+**Location:** `includes/class-geoai-breadcrumbs.php`
+
+## Key Features
+
+- Hierarchical breadcrumb navigation
+- Schema.org BreadcrumbList markup
+- Shortcode support
+- Customizable separator
+- Parent page support
+- Accessible ARIA labels
+- SEO-friendly HTML structure
+
+## Public Methods
+
+### get_instance()
+
+Returns the singleton instance of the breadcrumbs class.
+
+```php
+public static function get_instance()
+```
+
+**Returns:** `GeoAI_Breadcrumbs` - The singleton instance
+
+**Example:**
+```php
+$breadcrumbs = \GeoAI\Core\GeoAI_Breadcrumbs::get_instance();
+```
+
+### render_breadcrumbs()
+
+Renders breadcrumb navigation HTML with Schema.org markup.
+
+```php
+public function render_breadcrumbs( $atts = array() )
+```
+
+<ParamField path="atts" type="array">
+  Shortcode attributes for customization
+</ParamField>
+
+<ParamField path="atts.separator" type="string" default="/">
+  Character or string to separate breadcrumb items
+</ParamField>
+
+<ParamField path="atts.home_text" type="string" default="Home">
+  Text to display for the home link
+</ParamField>
+
+**Returns:** `string` - HTML breadcrumb navigation
+
+## Shortcode Usage
+
+### Basic Shortcode
+
+Add breadcrumbs to any post or page:
+
+```php
+[geoai_breadcrumbs]
+```
+
+### Custom Separator
+
+Change the separator character:
+
+```php
+[geoai_breadcrumbs separator=">"]
+[geoai_breadcrumbs separator="→"]
+[geoai_breadcrumbs separator=" | "]
+```
+
+### Custom Home Text
+
+Change the home link text:
+
+```php
+[geoai_breadcrumbs home_text="Homepage"]
+[geoai_breadcrumbs home_text="Start"]
+```
+
+### Combined Attributes
+
+```php
+[geoai_breadcrumbs separator="→" home_text="Homepage"]
+```
+
+## Theme Integration
+
+### Add to Template Files
+
+Add breadcrumbs to your theme:
+
+```php
+<?php
+if ( class_exists( '\GeoAI\Core\GeoAI_Breadcrumbs' ) ) {
+    $breadcrumbs = \GeoAI\Core\GeoAI_Breadcrumbs::get_instance();
+    echo $breadcrumbs->render_breadcrumbs( array(
+        'separator' => '>',
+        'home_text' => 'Home'
+    ));
+}
+?>
+```
+
+### Add to Header
+
+Typical placement in header.php:
+
+```php
+<header>
+    <h1><?php the_title(); ?></h1>
+    <?php
+    if ( function_exists( 'geoai_breadcrumbs' ) ) {
+        echo do_shortcode( '[geoai_breadcrumbs]' );
+    }
+    ?>
+</header>
+```
+
+### Add with Hook
+
+Use WordPress hooks:
+
+```php
+add_action( 'theme_before_content', function() {
+    if ( is_singular() && ! is_front_page() ) {
+        echo do_shortcode( '[geoai_breadcrumbs separator=">>"]' );
+    }
+});
+```
+
+## HTML Output
+
+### Structure
+
+The breadcrumbs output semantic HTML5 with Schema.org markup:
+
+```html
+<nav class="geoai-breadcrumbs" aria-label="Breadcrumb">
+  <ol itemscope itemtype="https://schema.org/BreadcrumbList">
+    <li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem">
+      <a href="https://example.com/" itemprop="item">
+        <span itemprop="name">Home</span>
+      </a>
+      <meta itemprop="position" content="1" />
+    </li>
+    <li class="separator">/</li>
+    <li itemprop="itemListElement" itemscope itemtype="https://schema.org/ListItem">
+      <span itemprop="name">Current Page</span>
+      <meta itemprop="position" content="2" />
+    </li>
+  </ol>
+</nav>
+```
+
+### Schema.org Properties
+
+<ParamField path="@type" type="string">
+  BreadcrumbList - Schema.org type
+</ParamField>
+
+<ParamField path="itemListElement" type="ListItem">
+  Individual breadcrumb items with position
+</ParamField>
+
+<ParamField path="item" type="URL">
+  The URL of the breadcrumb item
+</ParamField>
+
+<ParamField path="name" type="string">
+  Display text for the breadcrumb item
+</ParamField>
+
+<ParamField path="position" type="integer">
+  Position in the breadcrumb trail (1-based)
+</ParamField>
+
+## Breadcrumb Items
+
+### Item Structure
+
+Each breadcrumb item is an array:
+
+```php
+array(
+    'title' => 'Page Title',
+    'url'   => 'https://example.com/page/'
+)
+```
+
+### Home Item
+
+Always included as the first item:
+
+```php
+array(
+    'title' => 'Home',
+    'url'   => home_url( '/' )
+)
+```
+
+### Current Page
+
+Last item has no URL (not clickable):
+
+```php
+array(
+    'title' => get_the_title(),
+    'url'   => '' // Empty for current page
+)
+```
+
+### Parent Pages
+
+For hierarchical pages, ancestors are included:
+
+```php
+// Example hierarchy: Home > Parent > Child > Current
+array(
+    array( 'title' => 'Home', 'url' => '/' ),
+    array( 'title' => 'Parent', 'url' => '/parent/' ),
+    array( 'title' => 'Child', 'url' => '/parent/child/' ),
+    array( 'title' => 'Current', 'url' => '' )
+)
+```
+
+## Customization
+
+### Filter Breadcrumb Items
+
+Modify breadcrumb items before output:
+
+```php
+add_filter( 'geoai_breadcrumb_items', function( $items ) {
+    // Add custom item after Home
+    array_splice( $items, 1, 0, array(
+        array(
+            'title' => 'Blog',
+            'url'   => home_url( '/blog/' )
+        )
+    ));
+    
+    return $items;
+});
+```
+
+### Add Category to Breadcrumbs
+
+```php
+add_filter( 'geoai_breadcrumb_items', function( $items ) {
+    if ( is_singular( 'post' ) ) {
+        $category = get_the_category();
+        if ( ! empty( $category ) ) {
+            // Insert category before current page
+            array_splice( $items, -1, 0, array(
+                array(
+                    'title' => $category[0]->name,
+                    'url'   => get_category_link( $category[0]->term_id )
+                )
+            ));
+        }
+    }
+    
+    return $items;
+});
+```
+
+### Custom Styling
+
+Add custom CSS:
+
+```css
+.geoai-breadcrumbs {
+    padding: 10px 0;
+    font-size: 14px;
+    color: #666;
+}
+
+.geoai-breadcrumbs ol {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.geoai-breadcrumbs li {
+    display: inline;
+}
+
+.geoai-breadcrumbs a {
+    color: #0066cc;
+    text-decoration: none;
+}
+
+.geoai-breadcrumbs a:hover {
+    text-decoration: underline;
+}
+
+.geoai-breadcrumbs .separator {
+    color: #999;
+    margin: 0 4px;
+}
+```
+
+## Usage Examples
+
+### In Page Template
+
+```php
+<?php
+// single.php or page.php
+get_header();
+
+if ( have_posts() ) :
+    while ( have_posts() ) : the_post();
+        // Display breadcrumbs
+        echo do_shortcode( '[geoai_breadcrumbs]' );
+        
+        // Rest of content
+        the_content();
+    endwhile;
+endif;
+
+get_footer();
+?>
+```
+
+### Conditional Display
+
+```php
+<?php
+// Only show on single posts and pages
+if ( is_singular() && ! is_front_page() ) {
+    echo do_shortcode( '[geoai_breadcrumbs separator=">>"]' );
+}
+?>
+```
+
+### Helper Function
+
+Create a theme helper function:
+
+```php
+function mytheme_breadcrumbs() {
+    if ( ! is_front_page() ) {
+        echo do_shortcode( '[geoai_breadcrumbs separator="/" home_text="Home"]' );
+    }
+}
+
+// Use in templates
+mytheme_breadcrumbs();
+```
+
+### Programmatic Usage
+
+```php
+$breadcrumbs = \GeoAI\Core\GeoAI_Breadcrumbs::get_instance();
+$html = $breadcrumbs->render_breadcrumbs( array(
+    'separator' => '→',
+    'home_text' => 'Homepage'
+));
+
+echo $html;
+```
+
+## Accessibility
+
+### ARIA Labels
+
+Breadcrumbs include proper ARIA attributes:
+
+```html
+<nav class="geoai-breadcrumbs" aria-label="Breadcrumb">
+```
+
+This helps screen readers understand the navigation structure.
+
+### Semantic HTML
+
+Uses semantic `nav` and `ol` elements:
+
+- `nav` - Identifies navigation region
+- `ol` - Ordered list showing hierarchy
+- `li` - Individual items in sequence
+
+## SEO Benefits
+
+### Rich Results
+
+Breadcrumb Schema.org markup can appear in Google Search results as clickable breadcrumb trails above your listing.
+
+### Internal Linking
+
+Breadcrumbs create additional internal links, helping:
+- Search engine crawling
+- Link equity distribution
+- Site structure understanding
+
+### User Experience
+
+Improves navigation by:
+- Showing current location
+- Providing quick navigation to parent pages
+- Reducing bounce rate
+
+## Related Classes
+
+- [GeoAI_Schema](/api/schema) - Structured data output
+- [GeoAI_Meta](/api/meta) - Meta tags and SEO

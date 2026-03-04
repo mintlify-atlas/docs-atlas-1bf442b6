@@ -1,0 +1,517 @@
+---
+title: Meta Titles & Descriptions
+description: AI-powered meta tag generation with template variables and character count optimization
+---
+
+## Overview
+
+GEO AI provides comprehensive **meta title and description** management with AI-powered generation, template variables, and real-time character counting. Optimize your search engine snippets for maximum click-through rates.
+
+<Info>
+  Well-optimized meta titles and descriptions can improve CTR by 20-30% in search results.
+</Info>
+
+## Setting Title Templates
+
+Define global templates that automatically generate titles for different content types:
+
+<Steps>
+  <Step title="Access Title Settings">
+    Navigate to **Settings → GEO AI → Titles & Meta**
+  </Step>
+  
+  <Step title="Configure Templates">
+    Set templates for:
+    - Post Title
+    - Page Title  
+    - Archive Title
+    - Homepage Title
+  </Step>
+  
+  <Step title="Use Variables">
+    Insert template variables like `%%title%%`, `%%sitename%%`, `%%sep%%`
+  </Step>
+  
+  <Step title="Save Changes">
+    Click **Save Changes** to activate your templates
+  </Step>
+</Steps>
+
+## Available Template Variables
+
+<CardGroup cols={3}>
+  <Card title="%%title%%" icon="heading">
+    Post or page title
+  </Card>
+  
+  <Card title="%%sitename%%" icon="globe">
+    Site name from WordPress settings
+  </Card>
+  
+  <Card title="%%sep%%" icon="minus">
+    Separator character (|)
+  </Card>
+  
+  <Card title="%%excerpt%%" icon="align-left">
+    Post excerpt
+  </Card>
+  
+  <Card title="%%category%%" icon="folder">
+    Primary category
+  </Card>
+  
+  <Card title="%%tag%%" icon="tag">
+    First tag
+  </Card>
+  
+  <Card title="%%date%%" icon="calendar">
+    Publish date
+  </Card>
+  
+  <Card title="%%author%%" icon="user">
+    Author name
+  </Card>
+  
+  <Card title="%%sitedesc%%" icon="info-circle">
+    Site description/tagline
+  </Card>
+</CardGroup>
+
+## Template Examples
+
+<CodeGroup>
+
+```text Blog Posts
+%%title%% %%sep%% %%sitename%%
+```
+
+```text Pages
+%%title%% - %%sitename%%
+```
+
+```text Archives
+%%category%% Articles %%sep%% %%sitename%%
+```
+
+```text Homepage
+%%sitename%% %%sep%% %%sitedesc%%
+```
+
+</CodeGroup>
+
+## Implementation Details
+
+### Meta Handler Class
+
+```php title="includes/class-geoai-meta.php" showLineNumbers
+class GeoAI_Meta {
+    private static $instance = null;
+
+    public static function get_instance() {
+        if ( null === self::$instance ) {
+            self::$instance = new self();
+        }
+        return self::$instance;
+    }
+
+    private function __construct() {
+        add_action( 'wp_head', array( $this, 'output_meta_tags' ), 1 );
+        add_filter( 'pre_get_document_title', array( $this, 'filter_title' ), 10 );
+        add_action( 'add_meta_boxes', array( $this, 'add_meta_box' ) );
+        add_action( 'save_post', array( $this, 'save_meta_box' ) );
+    }
+}
+```
+
+### Template Parser
+
+```php title="includes/class-geoai-meta.php" showLineNumbers startLineNumber="117"
+private function parse_template( $template ) {
+    $replacements = array(
+        '%%title%%'    => get_the_title(),
+        '%%sitename%%' => get_bloginfo( 'name' ),
+        '%%sitedesc%%' => get_bloginfo( 'description' ),
+        '%%sep%%'      => '|',
+        '%%excerpt%%'  => get_the_excerpt(),
+        '%%date%%'     => get_the_date(),
+        '%%modified%%' => get_the_modified_date(),
+        '%%id%%'       => get_the_ID(),
+        '%%author%%'   => get_the_author(),
+    );
+
+    return str_replace( 
+        array_keys( $replacements ), 
+        array_values( $replacements ), 
+        $template 
+    );
+}
+```
+
+### Meta Tag Output
+
+```php title="includes/class-geoai-meta.php" showLineNumbers startLineNumber="43"
+public function output_meta_tags() {
+    if ( ! GeoAI_Compat::get_instance()->should_output_meta() ) {
+        return;
+    }
+
+    $description = $this->get_current_description();
+    $robots      = $this->get_current_robots();
+    $canonical   = $this->get_current_canonical();
+
+    if ( $description ) {
+        echo '<meta name="description" content="' . esc_attr( $description ) . '" />' . "\n";
+    }
+
+    if ( $robots ) {
+        echo '<meta name="robots" content="' . esc_attr( $robots ) . '" />' . "\n";
+    }
+
+    if ( $canonical ) {
+        echo '<link rel="canonical" href="' . esc_url( $canonical ) . '" />' . "\n";
+    }
+}
+```
+
+## AI-Powered Meta Generation
+
+Automatically generate optimized meta titles and descriptions using Google Gemini:
+
+<Tabs>
+  <Tab title="From Post Editor">
+    <Steps>
+      <Step title="Open Meta Box">
+        Scroll to the **GEO AI SEO** meta box in the post editor
+      </Step>
+      
+      <Step title="Click Generate">
+        Click **"Generate with AI"** button
+      </Step>
+      
+      <Step title="Wait for AI">
+        Wait 10-15 seconds for Gemini to analyze your content
+      </Step>
+      
+      <Step title="Review & Edit">
+        Review the generated title and description, edit as needed
+      </Step>
+      
+      <Step title="Save Post">
+        Update or publish your post to save the meta data
+      </Step>
+    </Steps>
+  </Tab>
+  
+  <Tab title="Programmatically">
+    ```php
+    $analyzer = \GeoAI\Core\GeoAI_Analyzer::get_instance();
+    $result = $analyzer->generate_meta_content( $post_id );
+    
+    if ( ! is_wp_error( $result ) ) {
+        update_post_meta( $post_id, '_geoai_title', $result['title'] );
+        update_post_meta( $post_id, '_geoai_meta_desc', $result['description'] );
+    }
+    ```
+  </Tab>
+</Tabs>
+
+### Meta Generation Implementation
+
+```php title="includes/class-geoai-analyzer.php" showLineNumbers startLineNumber="385"
+public function generate_meta_content( $post_id ) {
+    $post = get_post( $post_id );
+    if ( ! $post ) {
+        return new \WP_Error( 'invalid_post', __( 'Post not found.', 'geo-ai' ) );
+    }
+
+    $api_key = $this->get_api_key();
+    if ( empty( $api_key ) ) {
+        return new \WP_Error( 'no_api_key', __( 'Google Gemini API key not configured.', 'geo-ai' ) );
+    }
+
+    // Get content preview
+    $content = $this->get_rendered_content( $post );
+    $content_preview = substr( $content, 0, 5000 );
+
+    // Build prompt
+    $prompt = $this->build_meta_prompt( $post->post_title, $content_preview );
+
+    // Call API
+    $response = $this->call_gemini_meta_api( $prompt, $api_key );
+
+    if ( is_wp_error( $response ) ) {
+        return $response;
+    }
+
+    return $response;
+}
+```
+
+### Meta Generation Prompt
+
+```php title="includes/class-geoai-analyzer.php" showLineNumbers startLineNumber="416"
+private function build_meta_prompt( $title, $content ) {
+    return sprintf(
+        'You are an expert SEO copywriter. Based on the following content, generate an optimized meta title and meta description for maximum search engine and social media performance.
+
+Guidelines:
+- Meta Title: 50-60 characters, compelling, includes primary keyword, action-oriented
+- Meta Description: 150-160 characters, persuasive, includes call-to-action, enticing click-through
+
+Return ONLY a JSON object with this exact structure (no markdown, no code blocks):
+{
+  "title": "Your optimized meta title here",
+  "description": "Your optimized meta description here"
+}
+
+Current Title: %s
+
+Content Preview:
+%s
+
+Return the JSON now:',
+        $title,
+        $content
+    );
+}
+```
+
+## Meta Box Interface
+
+The post editor includes a full-featured meta box:
+
+```php title="includes/class-geoai-meta.php" showLineNumbers startLineNumber="148"
+public function render_meta_box( $post ) {
+    wp_nonce_field( 'geoai_meta_box', 'geoai_meta_box_nonce' );
+
+    $title       = get_post_meta( $post->ID, '_geoai_title', true );
+    $description = get_post_meta( $post->ID, '_geoai_meta_desc', true );
+    $robots      = get_post_meta( $post->ID, '_geoai_robots', true );
+    ?>
+    <div class="geoai-meta-box">
+        <div style="background: #f0f6fc; padding: 12px; border-radius: 4px;">
+            <p style="margin: 0;">
+                <strong><?php esc_html_e( 'AI-Powered Generation', 'geo-ai' ); ?></strong>
+            </p>
+            <button type="button" id="geoai-generate-meta-btn" 
+                    class="button button-primary" 
+                    data-post-id="<?php echo esc_attr( $post->ID ); ?>">
+                <?php esc_html_e( 'Generate with AI', 'geo-ai' ); ?>
+            </button>
+        </div>
+
+        <p>
+            <label for="geoai_title">
+                <strong><?php esc_html_e( 'SEO Title', 'geo-ai' ); ?></strong>
+            </label><br/>
+            <input type="text" id="geoai_title" name="geoai_title" 
+                   value="<?php echo esc_attr( $title ); ?>" 
+                   class="large-text" maxlength="70" />
+            <p class="description">
+                <?php esc_html_e( 'Optimal length: 50-60 characters', 'geo-ai' ); ?>
+            </p>
+        </p>
+        
+        <p>
+            <label for="geoai_meta_desc">
+                <strong><?php esc_html_e( 'Meta Description', 'geo-ai' ); ?></strong>
+            </label><br/>
+            <textarea id="geoai_meta_desc" name="geoai_meta_desc" 
+                      rows="3" class="large-text" maxlength="165">
+                <?php echo esc_textarea( $description ); ?>
+            </textarea>
+            <p class="description">
+                <?php esc_html_e( 'Optimal length: 150-160 characters', 'geo-ai' ); ?>
+            </p>
+        </p>
+    </div>
+    <?php
+}
+```
+
+## Robots Meta Tags
+
+Control how search engines index your content:
+
+<CardGroup cols={2}>
+  <Card title="index, follow" icon="check">
+    **Default:** Allow indexing and following links (recommended for most content)
+  </Card>
+  
+  <Card title="noindex, follow" icon="eye-slash">
+    **Use for:** Thin content, duplicate pages, thank you pages. Prevents indexing but allows link following.
+  </Card>
+  
+  <Card title="index, nofollow" icon="link-slash">
+    **Use for:** User-generated content, sponsored sections. Allows indexing but no link credit.
+  </Card>
+  
+  <Card title="noindex, nofollow" icon="ban">
+    **Use for:** Admin pages, login pages, private content. Prevents both indexing and link following.
+  </Card>
+</CardGroup>
+
+## Character Count Guidelines
+
+<Accordion title="Meta Title Length">
+  **Optimal:** 50-60 characters  
+  **Maximum:** 70 characters (Google's cutoff)
+  
+  <Tip>
+    Titles longer than 60 characters may be truncated in search results with "..."
+  </Tip>
+  
+  **Examples:**
+  
+  Good (55 chars):
+  > Complete WordPress SEO Guide | Your Site Name
+  
+  Too Long (78 chars):
+  > The Ultimate Comprehensive Step-by-Step WordPress SEO Optimization Guide for Beginners
+</Accordion>
+
+<Accordion title="Meta Description Length">
+  **Optimal:** 150-160 characters  
+  **Maximum:** 165 characters (Google's cutoff)
+  
+  **Examples:**
+  
+  Good (158 chars):
+  > Learn how to optimize WordPress for search engines with our comprehensive guide. Improve rankings, increase traffic, and boost conversions today!
+  
+  Too Short (45 chars):
+  > WordPress SEO tips and best practices.
+</Accordion>
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Include Primary Keyword" icon="key">
+    Place your target keyword near the beginning of the title for better SEO.
+  </Card>
+  
+  <Card title="Write for Humans" icon="users">
+    Make titles compelling and descriptions persuasive. CTR matters more than keyword stuffing.
+  </Card>
+  
+  <Card title="Add Call-to-Action" icon="hand-pointer">
+    Use action words in descriptions: "Learn", "Discover", "Get", "Start"
+  </Card>
+  
+  <Card title="Make Them Unique" icon="fingerprint">
+    Every page should have a unique title and description. Avoid duplicates.
+  </Card>
+  
+  <Card title="Include Your Brand" icon="building">
+    Add site name to titles using `%%sitename%%` for brand recognition.
+  </Card>
+  
+  <Card title="Match Search Intent" icon="bullseye">
+    Align titles/descriptions with what users are searching for.
+  </Card>
+</CardGroup>
+
+## Bulk Editing
+
+Edit meta titles and descriptions for multiple posts at once:
+
+<Steps>
+  <Step title="Access Bulk Editor">
+    Navigate to **Settings → GEO AI → Bulk Editor**
+  </Step>
+  
+  <Step title="Select Post Type">
+    Choose the post type to edit (Posts, Pages, etc.)
+  </Step>
+  
+  <Step title="Edit Inline">
+    Modify titles and descriptions directly in the table
+  </Step>
+  
+  <Step title="Save All Changes">
+    Click **"Save All Changes"** to update all posts
+  </Step>
+</Steps>
+
+<Note>
+  Bulk editor displays 20 posts per page with pagination controls.
+</Note>
+
+## Canonical URLs
+
+GEO AI automatically adds canonical URLs to prevent duplicate content issues:
+
+```html
+<link rel="canonical" href="https://example.com/my-post/" />
+```
+
+Canonical URLs:
+- Point to the preferred version of a page
+- Prevent duplicate content penalties
+- Consolidate link signals to one URL
+- Generated automatically for all singular pages
+
+## Output Examples
+
+For a blog post titled "WordPress Performance Tips":
+
+```html
+<head>
+  <!-- Title from template: %%title%% | %%sitename%% -->
+  <title>WordPress Performance Tips | My Tech Blog</title>
+  
+  <!-- Meta description -->
+  <meta name="description" content="Discover 10 proven WordPress performance optimization techniques to reduce page load time by 50% and improve user experience." />
+  
+  <!-- Robots meta -->
+  <meta name="robots" content="index, follow" />
+  
+  <!-- Canonical URL -->
+  <link rel="canonical" href="https://example.com/wordpress-performance-tips/" />
+</head>
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Titles not appearing">
+    **Check:**
+    - Compatibility mode is set correctly
+    - No other SEO plugin is overriding titles
+    - Template syntax is correct (use `%%title%%` not `%title%`)
+  </Accordion>
+  
+  <Accordion title="AI generation fails">
+    **Cause:** No API key or invalid key
+    
+    **Solution:** Configure valid Gemini API key in Settings → General
+  </Accordion>
+  
+  <Accordion title="Description truncated in search">
+    **Cause:** Exceeds 160 character limit
+    
+    **Solution:** Edit to fit within 150-160 character guideline
+  </Accordion>
+  
+  <Accordion title="Duplicate meta tags">
+    **Cause:** Multiple SEO plugins active
+    
+    **Solution:** Enable Coexist Mode or disable meta output in other plugins
+  </Accordion>
+</AccordionGroup>
+
+## Related Features
+
+<CardGroup cols={3}>
+  <Card title="Social Cards" icon="share-nodes" href="./social-cards">
+    OpenGraph titles & descriptions
+  </Card>
+  
+  <Card title="AI Audit" icon="robot" href="./ai-audit">
+    AI-powered title suggestions
+  </Card>
+  
+  <Card title="Schema Markup" icon="code" href="./schema">
+    Structured data for search
+  </Card>
+</CardGroup>
