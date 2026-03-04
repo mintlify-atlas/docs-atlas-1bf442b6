@@ -1,0 +1,136 @@
+{
+  "projectType": "framework",
+  "projectName": "GEO AI",
+  "projectDescription": "Modern WordPress SEO plugin optimized for AI answer engines (Google AI Overviews, Perplexity, ChatGPT) with all the essential classic SEO features.",
+  "theme": "palm",
+  "primaryColor": "#6366f1",
+  "lightColor": "#818cf8",
+  "darkColor": "#4f46e5",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "quickstart",
+              "configuration"
+            ]
+          },
+          {
+            "group": "Core Features",
+            "pages": [
+              "features/ai-audit",
+              "features/answer-card",
+              "features/schema",
+              "features/meta-titles",
+              "features/social-cards",
+              "features/sitemaps",
+              "features/breadcrumbs",
+              "features/redirects",
+              "features/404-monitor",
+              "features/ai-crawler-control"
+            ]
+          },
+          {
+            "group": "Advanced",
+            "pages": [
+              "advanced/analyzers",
+              "advanced/compatibility",
+              "advanced/wp-cli",
+              "advanced/hooks-filters",
+              "advanced/encryption"
+            ]
+          },
+          {
+            "group": "Developer Guide",
+            "pages": [
+              "developers/architecture",
+              "developers/blocks",
+              "developers/rest-api",
+              "developers/extending",
+              "developers/contributing"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "PHP Classes",
+            "pages": [
+              "api/admin",
+              "api/analyzer",
+              "api/meta",
+              "api/schema",
+              "api/sitemaps",
+              "api/social",
+              "api/breadcrumbs",
+              "api/redirects"
+            ]
+          },
+          {
+            "group": "REST API",
+            "pages": [
+              "api/rest/overview",
+              "api/rest/audit",
+              "api/rest/quick-fix"
+            ]
+          },
+          {
+            "group": "Analyzers",
+            "pages": [
+              "api/analyzers/keyword",
+              "api/analyzers/readability",
+              "api/analyzers/content-insights",
+              "api/analyzers/internal-linking",
+              "api/analyzers/seo-dashboard"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Google Gemini-powered AI audit with 4-dimensional analysis",
+    "Gutenberg Answer Card block for AI answer engines",
+    "Comprehensive schema markup support (Article, FAQ, HowTo, Product, LocalBusiness)",
+    "SEO essentials: meta titles, descriptions, social cards, XML sitemaps",
+    "AI crawler control for PerplexityBot, GPTBot, CCBot, and anthropic-ai",
+    "Compatibility mode with Yoast, Rank Math, SEOPress, and All in One SEO",
+    "Breadcrumbs with BreadcrumbList schema",
+    "301/302 redirect manager with wildcard support",
+    "404 monitor with retention controls",
+    "WP-CLI commands for bulk audits",
+    "Encrypted API key storage with libsodium",
+    "Editor sidebar panel for in-editor SEO workflow"
+  ],
+  "publicApiSurface": [
+    "GeoAI\\GeoAI_Plugin::get_instance()",
+    "GeoAI\\GeoAI_Admin",
+    "GeoAI\\GeoAI_Analyzer",
+    "GeoAI\\GeoAI_Meta",
+    "GeoAI\\GeoAI_Schema",
+    "GeoAI\\GeoAI_Sitemaps",
+    "GeoAI\\GeoAI_Social",
+    "GeoAI\\GeoAI_Breadcrumbs",
+    "GeoAI\\GeoAI_Redirects",
+    "GeoAI\\GeoAI_404",
+    "GeoAI\\GeoAI_REST",
+    "GeoAI\\GeoAI_CLI",
+    "GeoAI\\Analyzers\\Keyword_Analyzer",
+    "GeoAI\\Analyzers\\Readability_Analyzer",
+    "GeoAI\\Analyzers\\Content_Insights",
+    "GeoAI\\Analyzers\\Internal_Linking",
+    "GeoAI\\Analyzers\\SEO_Dashboard",
+    "wp geoai audit",
+    "wp geoai audit all",
+    "/wp-json/geoai/v1/audit",
+    "/wp-json/geoai/v1/quick-fix",
+    "geoai/answer-card block"
+  ]
+}
